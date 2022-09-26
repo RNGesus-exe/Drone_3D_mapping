@@ -75,6 +75,12 @@ class BmpHandler
         @param y2 ending y coordinate
     */
     void createBorder(int, int, int, int);
+    /*
+        This is a function to get square of a value
+        @param value Enter the value to get square of
+        @return square Returns the square of the value
+    */
+    int pow(int);
 
 public:
     /*
@@ -140,17 +146,18 @@ public:
         @param row: The row on which edge detection should be applied
         @param displayEdges: If set true, the edges will be visible when using {this->writeBMPImage}
         @param padding: How many columns to skip from left and right
+        @param skip_amount: If edge is found, how many pixels to skip after it. DON'T USE LESS THEN 1
     */
-    void singleRowEdgeDetection(int, bool = false, int = 10);
+    void singleRowEdgeDetection(int, bool = false, int = 1, int = 3);
     /*
         If edge points have been detected and stored in {this->edgePoints}
-            We will take 8 neighbors of the edgePoints and compare the entire patch
-            with the corresponding row (x-axis) of ImageB, We will use SSD(sum of squared differences)
-            to find the most similar patch
+            we will take 8 neighbors of the edgePoints and compare the entire patch
+            with the corresponding row (x-axis) of 10 images of the right camera
+            ,to find the best matching patches we will use
         @param ImageB Pass the object of BmpReader containing the ImageB
-        @param padding How much area you want to explore row-wise (y-axis)
+        @param offset How many rows you want to move (up/down)
     */
-    void templateMatching(BmpHandler &, int = 10);
+    void singleRowTemplateMatching(BmpHandler &, int);
 };
 
 #endif

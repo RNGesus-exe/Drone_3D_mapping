@@ -8,7 +8,7 @@ int main()
 {
     srand(time(NULL)); // Seed
 
-    BmpHandler bmpA("imageA");
+    BmpHandler bmpA("Images/sampleA/left");
     bmpA.applyAutoContrast();
     bmpA.applyGrayscale();
     int row = bmpA.getImgHeight() / 2;
@@ -20,8 +20,8 @@ int main()
     // }
     bmpA.singleRowEdgeDetection(row, true);
 
-    BmpHandler bmpB("imageB");
-    bmpA.templateMatching(bmpB);
+    BmpHandler bmpB("Images/sampleA/right2");
+    bmpA.singleRowTemplateMatching(bmpB, -10);
 
     bmpA.writeBMPImage(false);
     bmpB.writeBMPImage(false);
