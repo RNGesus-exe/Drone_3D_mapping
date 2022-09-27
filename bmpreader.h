@@ -46,15 +46,10 @@ class BmpHandler
     */
     void allocateBuffer(unsigned char ***&);
     /*
-        This function will read the header of the bmp image and store the {Height x Width} in {this->img_dim}
-        @param The file stream which is linked with the path of the bmp image
-        @return A pair of {Height x Width} {pair.first = height && pair.second == width}
-    */
-    pair<uint16_t, uint16_t> getImageDimensions(fstream &);
-    /*
         The bmp image is read and loaded into {this->img}.
         For some reason reading directly into the 3d array doesnt work properly on windows
-        so it reads into intermediate 1-d Array and then converts to 3-d
+        so it reads into intermediate 1-d Array and then converts to 3-d.
+        Also populates the image dimensions
         @param The file name
     */
     int readImage(std::string filename);

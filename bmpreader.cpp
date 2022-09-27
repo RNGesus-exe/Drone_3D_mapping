@@ -162,25 +162,6 @@ BmpHandler::~BmpHandler()
     }
 }
 
-pair<uint16_t, uint16_t> BmpHandler::getImageDimensions(fstream &bmp)
-{
-    bmp.read(this->header, HEADER_LEN);
-
-    uint16_t width = (uint8_t)this->header[19];
-    width <<= 8;
-    width += (uint8_t)this->header[18];
-
-    uint16_t height = (uint8_t)this->header[23];
-    height <<= 8;
-    height += (uint8_t)this->header[22];
-
-    pair<uint16_t, uint16_t> img_dim;
-    img_dim.first = height;
-    img_dim.second = width;
-
-    return img_dim;
-}
-
 void BmpHandler::createBorder(int x1, int y1, int x2, int y2)
 {
     if ((x1 <= x2) ||
