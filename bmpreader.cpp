@@ -71,7 +71,7 @@ vector<pair<int, int>> BmpHandler::getEdgePoint() const
     return this->edgePoints;
 }
 
-void BmpHandler::singleRowEdgeDetection(int row, bool displayEdges, int padding)
+void BmpHandler::singleRowEdgeDetection(int row, bool displayEdges, int padding, int skip_amount)
 {
     if (this->img)
     {
@@ -96,8 +96,8 @@ void BmpHandler::singleRowEdgeDetection(int row, bool displayEdges, int padding)
                             this->createBorder(row - 1, col - 1, row + 1, col + 1);
                         }
 
-                        // To make sure pixels aren't clumped together
-                        col++;
+                        // To make sure pixels aren't clumped together, we will skip an extra step
+                        col += skip_amount;
                     }
                 }
             }
@@ -146,6 +146,39 @@ BmpHandler::~BmpHandler()
         delete[] this->img;
         this->img = nullptr;
     }
+
+    if (this->original_img)
+    {
+        for (int i = 0; i < COLOR_CHANNELS; ++i)
+        {
+            for (int j = 0; j < this->img_dim.first; ++j)
+            {
+                delete[] this->original_img[i][j];
+            }
+            delete[] this->original_img[i];
+        }
+        delete[] this->original_img;
+        this->original_img = nullptr;
+    }
+}
+
+pair<uint16_t, uint16_t> BmpHandler::getImageDimensions(fstream &bmp)
+{
+    bmp.read(this->header, HEADER_LEN);
+
+    uint16_t width = (uint8_t)this->header[19];
+    width <<= 8;
+    width += (uint8_t)this->header[18];
+
+    uint16_t height = (uint8_t)this->header[23];
+    height <<= 8;
+    height += (uint8_t)this->header[22];
+
+    pair<uint16_t, uint16_t> img_dim;
+    img_dim.first = height;
+    img_dim.second = width;
+
+    return img_dim;
 }
 
 void BmpHandler::createBorder(int x1, int y1, int x2, int y2)
@@ -201,7 +234,12 @@ void BmpHandler::createBorder(int x1, int y1, int x2, int y2)
     }
 }
 
-void BmpHandler::templateMatching(BmpHandler &bmpB, int padding)
+int BmpHandler::pow(int val)
+{
+    return val * val;
+}
+
+void BmpHandler::singleRowTemplateMatching(BmpHandler &bmpB, int rowOffSet)
 {
     if (this->edgePoints.size() > 0)
     {
@@ -210,56 +248,49 @@ void BmpHandler::templateMatching(BmpHandler &bmpB, int padding)
         char patch[COLOR_CHANNELS][patch_row][patch_col]; // Temporary buffer which will hold the patch
         for (int i = 0; i < this->edgePoints.size(); i++)
         {
-            // 1) Save the patch from ImageA into a temp buffer
-            for (int c = 0; c < COLOR_CHANNELS; c++)
+            int best_ssd;
+            int curr_ssd;
+            pair<int, int> best_coord; // This will store the index (x,y) for the best ssd
+            for (int edge_no = 0; edge_no < this->edgePoints.size(); edge_no++)
             {
-                for (int r = this->edgePoints[i].first - 1; r < (this->edgePoints[i].first + 2); r++)
+                best_ssd = INT32_MAX;
+                // Compare with all patches in a row of ImageB
+                for (int col = 1; col < (this->edgePoints[edge_no].second - 1); col++)
                 {
-                    for (int w = this->edgePoints[i].second - 1; w < (this->edgePoints[i].second + 2); w++)
-                    {
-                        patch[c][r - this->edgePoints[i].first - 1][w - this->edgePoints[i].second - 1] = this->original_img[c][r][w];
-                    }
-                }
-            }
-
-            int best_ssd = INT32_MAX;  // This will store the overall best score of ssd
-            pair<int, int> best_coord; // This will store the index for the best ssd
-
-            // 2) Start comparing the patch in ImageB with a padding
-            for (int r = this->edgePoints[i].first - padding; r < (this->edgePoints[i].first) + padding; r++)
-            {
-                for (int w = padding; w < (this->img_dim.second - padding); w++)
-                {
-                    // 3) Find Sum of Squared difference and update best one
-
-                    int ssd = 0; // This is a temp buffer used for calculation of ssd
+                    // Compare and find SSD of each patch
+                    curr_ssd = 0;
                     for (int c = 0; c < COLOR_CHANNELS; c++)
                     {
-                        for (int x = r; x < (r + patch_row); x++)
+                        for (int r = 0; r < 3; r++)
                         {
-                            for (int y = w; y < (w + patch_col); y++)
+                            for (int w = 0; w < 3; w++)
                             {
-                                ssd += (patch[c][x - r][y - w] - bmpB.original_img[c][x][y]) * (patch[c][x - x][y - y] - bmpB.original_img[c][x][y]);
+                                curr_ssd += this->pow(this->abs(this->original_img[c]
+                                                                                  [(this->edgePoints[edge_no].first - 1) + r]
+                                                                                  [(this->edgePoints[edge_no].second - 1) + w] -
+                                                                bmpB.original_img[c]
+                                                                                 [(this->edgePoints[edge_no].first + rowOffSet - 1) + r]
+                                                                                 [(col - 1) + w]));
                             }
                         }
                     }
 
-                    // 4) Compare new_ssd with best_ssd
-                    if (ssd < best_ssd)
+                    // Compare curr_ssd with best_ssd
+                    if (curr_ssd < best_ssd)
                     {
-                        best_ssd = ssd;
-                        best_coord.first = r;
-                        best_coord.second = w;
+                        best_ssd = curr_ssd;
+                        best_coord.first = this->edgePoints[edge_no].first + rowOffSet;
+                        best_coord.second = col;
                     }
                 }
-            }
 
-            // 5) Print the most correlating point in the second image
-            bmpB.createBorder(best_coord.first - 1, best_coord.second - 1, best_coord.first + 1, best_coord.second + 1);
-            // cout << "\n"
-            //      << edgePoints[i].first << "," << edgePoints[i].second
-            //      << " = "
-            //      << best_coord.first << "," << best_coord.second;
+                // 5) Print the most correlating point in the second image
+                bmpB.createBorder(best_coord.first - 1, best_coord.second - 1, best_coord.first + 1, best_coord.second + 1);
+                cout << "\n"
+                     << edgePoints[edge_no].first << "," << edgePoints[edge_no].second
+                     << " = "
+                     << best_coord.first << "," << best_coord.second;
+            }
         }
     }
     else

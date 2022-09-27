@@ -52,7 +52,9 @@ class BmpHandler
     */
     pair<uint16_t, uint16_t> getImageDimensions(fstream &);
     /*
-        The bmp image is read and loaded into {this->img}
+        The bmp image is read and loaded into {this->img}.
+        For some reason reading directly into the 3d array doesnt work properly on windows
+        so it reads into intermediate 1-d Array and then converts to 3-d
         @param The file name
     */
     int readImage(std::string filename);
@@ -81,6 +83,12 @@ class BmpHandler
         @param buf 1-d pixel array
     */
     void convertTo3d(uint8_t *buf);
+
+    /*  This is a function to get square of a value
+        @param value Enter the value to get square of
+        @return square Returns the square of the value
+    */
+    int pow(int);
 
 public:
     /*
@@ -128,11 +136,6 @@ public:
        @return The Width of the BmpImage
     */
     int getImgWidth() const;
-    /*
-        This function will read and load the header into {this->header} and the dimensions of image into {this->img_dim}
-        This function will read the bmp image from the given {this->path + ".bmp"} and load it into {this->img}
-    */
-    void readBMPImage(fstream &bmp);
 
     /*
         This function will write the bmp image to the given {this->path + "_w.bmp"}
@@ -156,17 +159,18 @@ public:
         @param row: The row on which edge detection should be applied
         @param displayEdges: If set true, the edges will be visible when using {this->writeBMPImage}
         @param padding: How many columns to skip from left and right
+        @param skip_amount: If edge is found, how many pixels to skip after it. DON'T USE LESS THEN 1
     */
-    void singleRowEdgeDetection(int, bool = false, int = 10);
+    void singleRowEdgeDetection(int, bool = false, int = 1, int = 3);
     /*
         If edge points have been detected and stored in {this->edgePoints}
-            We will take 8 neighbors of the edgePoints and compare the entire patch
-            with the corresponding row (x-axis) of ImageB, We will use SSD(sum of squared differences)
-            to find the most similar patch
+        we will take 8 neighbors of the edgePoints and compare the entire patch
+        with the corresponding row (x-axis) of 10 images of the right camera
+        ,to find the best matching patches we will use
         @param ImageB Pass the object of BmpReader containing the ImageB
-        @param padding How much area you want to explore row-wise (y-axis)
+        @param offset How many rows you want to move (up/down)
     */
-    void templateMatching(BmpHandler &, int = 10);
+    void singleRowTemplateMatching(BmpHandler &, int);
 };
 
 #endif
