@@ -6,7 +6,7 @@ BmpHandler::BmpHandler(string _path_) : path(_path_)
     this->isGrayScale = false;
     if (this->path != "")
     {
-        this->loadBmpImage();
+        this->readImage(path);
     }
 }
 
@@ -117,27 +117,6 @@ void BmpHandler::singleRowEdgeDetection(int row, bool displayEdges, int padding)
     }
 }
 
-void BmpHandler::loadBmpImage()
-{
-    if (this->path != "") // Check if path is set
-    {
-        fstream bmp;
-        bmp.open(path + ".bmp", ios::in);
-        if (bmp)
-        {
-            this->img_dim = this->getImageDimensions(bmp); // This will load the Height x Width of the bmp
-            this->allocateBuffer(this->img);               // This will allocate the memory for the 3D array holding the image
-            this->allocateBuffer(this->original_img);      // This will allocate the memory for the 3D array holding the original image
-            readBMPImage(bmp);                             // This will read the bmp and load it into the data structure
-        }
-        bmp.close();
-    }
-    else
-    {
-        cerr << "\nThere was no <path> given from which bmp file could be loaded...";
-    }
-}
-
 void BmpHandler::setPath(string _path_)
 {
 
@@ -167,65 +146,6 @@ BmpHandler::~BmpHandler()
         delete[] this->img;
         this->img = nullptr;
     }
-}
-
-void BmpHandler::writeBMPImage(bool imgType)
-{
-    unsigned char ***buf;
-    if (imgType)
-    {
-        buf = this->original_img;
-    }
-    else
-    {
-        buf = this->img;
-    }
-
-    if (buf)
-    {
-        fstream bmp;
-        int avg = 0;
-        bmp.open(this->path + "_w.bmp", ios::out);
-        if (bmp)
-        {
-            bmp.write(this->header, HEADER_LEN);
-            for (unsigned int row = 0; row < this->img_dim.first; ++row)
-            {
-                for (unsigned int col = 0; col < this->img_dim.second; ++col)
-                {
-                    bmp << (char)buf[0][row][col] << (char)buf[1][row][col] << (char)buf[2][row][col];
-                }
-            }
-        }
-        else
-        {
-            cerr << "\nThere was an error opening/creating your bmp image <" << path << "_w.bmp>";
-        }
-        bmp.close();
-    }
-    else
-    {
-        cerr << "\nThere was no data in buffer {this->img}, Nothing could be written in {this->path + \"_w.bmp\"}...";
-    }
-}
-
-pair<uint16_t, uint16_t> BmpHandler::getImageDimensions(fstream &bmp)
-{
-    bmp.read(this->header, HEADER_LEN);
-
-    uint16_t width = (uint8_t)this->header[19];
-    width <<= 8;
-    width += (uint8_t)this->header[18];
-
-    uint16_t height = (uint8_t)this->header[23];
-    height <<= 8;
-    height += (uint8_t)this->header[22];
-
-    pair<uint16_t, uint16_t> img_dim;
-    img_dim.first = height;
-    img_dim.second = width;
-
-    return img_dim;
 }
 
 void BmpHandler::createBorder(int x1, int y1, int x2, int y2)
@@ -285,8 +205,8 @@ void BmpHandler::templateMatching(BmpHandler &bmpB, int padding)
 {
     if (this->edgePoints.size() > 0)
     {
-        int patch_row = 3;
-        int patch_col = 3;
+        const int patch_row = 3;
+        const int patch_col = 3;
         char patch[COLOR_CHANNELS][patch_row][patch_col]; // Temporary buffer which will hold the patch
         for (int i = 0; i < this->edgePoints.size(); i++)
         {
@@ -379,27 +299,107 @@ void BmpHandler::findMinMaxContrast(int blue, int red, int green)
     }
 }
 
-void BmpHandler::readBMPImage(fstream &bmp)
+int BmpHandler::readImage(std::string filename)
 {
-    int row = 0;
-    int width = 0;
-    char tmp[3];
-    while (row < this->img_dim.first)
+    string name = filename + ".bmp";
+    FILE *fileptr = fopen(name.c_str(), "rb");
+    if (!fileptr)
     {
-        width = 0;
-        while (width < this->img_dim.second)
-        {
-            bmp.read(tmp, 3);
-            for (unsigned int color = 0; color < COLOR_CHANNELS; ++color)
-            {
-                this->img[color][row][width] = tmp[color];
-                this->original_img[color][row][width] = tmp[color];
-            }
-            findMinMaxContrast(this->img[0][row][width], this->img[1][row][width], this->img[2][row][width]);
-            width++;
-        }
-        row++;
+        printf("Could Not Open File.\n");
+        return 0;
     }
+    int bytes = fread(this->header, 1, HEADER_LEN, fileptr);
+    if (bytes == 0 || bytes < HEADER_LEN)
+    {
+        printf("Could not read header \n");
+        return 0;
+    }
+    this->img_dim.second = *((int *)&this->header[18]);
+    this->img_dim.first = *((int *)&this->header[22]);
+    int imgsize = this->img_dim.first * this->img_dim.second * 3;
+
+    uint8_t *buf = new uint8_t[imgsize];
+
+    int move = fseek(fileptr, 54, SEEK_SET);
+    if (move != 0)
+    {
+        printf("Could Not Move Pointer\n");
+        return 0;
+    }
+    long pixbytes = fread(buf, 1, imgsize, fileptr);
+    if (pixbytes != imgsize)
+    {
+        printf("Could Not Read Pixels\n");
+        return 0;
+    }
+    fflush(fileptr);
+    fclose(fileptr);
+    this->convertTo3d(buf);
+    delete[] buf;
+    return 1;
+}
+
+void BmpHandler::convertTo3d(uint8_t *buf)
+{
+    int height = this->img_dim.first;
+    int width = this->img_dim.second;
+    allocateBuffer(this->img);
+    allocateBuffer(this->original_img);
+
+    for (int r = 0; r < height; r++)
+    {
+        for (int c = 0; c < width; c++)
+        {
+            for (int k = 0; k < 3; k++)
+            {
+                this->img[k][r][c] = (unsigned char)buf[(r * width * 3) + (c * 3) + (k)];
+                this->original_img[k][r][c] = (unsigned char)buf[(r * width * 3) + (c * 3) + (k)];
+            }
+        }
+    }
+}
+
+void BmpHandler::writeBMPImage(bool imgType)
+{
+    int height = this->img_dim.first;
+    int width = this->img_dim.second;
+    uint8_t *data = new uint8_t[(height * width * 3)];
+
+    unsigned char ***buf = nullptr;
+
+    if (imgType)
+    {
+        buf = this->original_img;
+    }
+    else
+    {
+        buf = this->img;
+    }
+
+    for (int r = 0; r < height; r++)
+    {
+        for (int c = 0; c < width; c++)
+        {
+            for (int k = 0; k < 3; k++)
+            {
+                data[(r * width * 3) + (c * 3) + (k)] = (uint8_t)this->img[k][r][c];
+            }
+        }
+    }
+    FILE *file = fopen("imageA_w.bmp", "wb");
+    if (file)
+    {
+        fwrite(this->header, 1, HEADER_LEN, file);
+        fseek(file, HEADER_LEN, SEEK_SET);
+        fwrite((char *)data, 1, (height * width * 3), file);
+        fflush(file);
+        fclose(file);
+    }
+    else
+    {
+        printf("Could not open outfile\n");
+    }
+    delete[] data;
 }
 
 void BmpHandler::allocateBuffer(unsigned char ***&buf)

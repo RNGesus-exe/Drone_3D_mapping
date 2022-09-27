@@ -9,7 +9,8 @@
 #ifndef BMPREADER_H
 #define BMPREADER_H
 
-/* Commenting your code is like cleaning your bathroom -
+/*
+   Commenting your code is like cleaning your bathroom -
    you never want to do it, but it really does create a
    more pleasant experience for you and your guests.
    -Ryan Campbell
@@ -52,9 +53,9 @@ class BmpHandler
     pair<uint16_t, uint16_t> getImageDimensions(fstream &);
     /*
         The bmp image is read and loaded into {this->img}
-        @param The file stream which is linked with the path of the bmp image
+        @param The file name
     */
-    void readBMPImage(fstream &);
+    int readImage(std::string filename);
     /*
         This will find and update minimum and maximum value from the BRG layers of the bmp image
         @param The Blue, Red and Green pixel value
@@ -75,6 +76,11 @@ class BmpHandler
         @param y2 ending y coordinate
     */
     void createBorder(int, int, int, int);
+    /*
+        Converts 1-dimensional pixel data into 3-dimensional [RGB][ROW][COL]
+        @param buf 1-d pixel array
+    */
+    void convertTo3d(uint8_t *buf);
 
 public:
     /*
@@ -83,6 +89,7 @@ public:
         if(path is passed)
             The image will be loaded into {this->img}
     */
+
     BmpHandler(string = "");
     /*
         This is the destructor
@@ -97,10 +104,18 @@ public:
         This is the accessor for {this->path}
         @return The path of the BmpImage
     */
+
     string getPath() const;
+
+    /* Returns the pointer to pixel data */
+
+    unsigned char ***getImg()
+    {
+        return this->img;
+    }
     /*
-        This is the accessor for {this->img_dim.first}
-        @return The Height of the BmpImage
+            This is the accessor for {this->img_dim.first}
+            @return The Height of the BmpImage
     */
     int getImgHeight() const;
     /*
@@ -117,7 +132,8 @@ public:
         This function will read and load the header into {this->header} and the dimensions of image into {this->img_dim}
         This function will read the bmp image from the given {this->path + ".bmp"} and load it into {this->img}
     */
-    void loadBmpImage();
+    void readBMPImage(fstream &bmp);
+
     /*
         This function will write the bmp image to the given {this->path + "_w.bmp"}
         @param flag set true for original image, set false for modified image
