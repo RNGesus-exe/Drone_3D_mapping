@@ -9,7 +9,8 @@
 #ifndef BMPREADER_H
 #define BMPREADER_H
 
-/* Commenting your code is like cleaning your bathroom -
+/*
+   Commenting your code is like cleaning your bathroom -
    you never want to do it, but it really does create a
    more pleasant experience for you and your guests.
    -Ryan Campbell
@@ -45,16 +46,13 @@ class BmpHandler
     */
     void allocateBuffer(unsigned char ***&);
     /*
-        This function will read the header of the bmp image and store the {Height x Width} in {this->img_dim}
-        @param The file stream which is linked with the path of the bmp image
-        @return A pair of {Height x Width} {pair.first = height && pair.second == width}
+        The bmp image is read and loaded into {this->img}.
+        For some reason reading directly into the 3d array doesnt work properly on windows
+        so it reads into intermediate 1-d Array and then converts to 3-d.
+        Also populates the image dimensions
+        @param The file name
     */
-    pair<uint16_t, uint16_t> getImageDimensions(fstream &);
-    /*
-        The bmp image is read and loaded into {this->img}
-        @param The file stream which is linked with the path of the bmp image
-    */
-    void readBMPImage(fstream &);
+    int readImage(std::string filename);
     /*
         This will find and update minimum and maximum value from the BRG layers of the bmp image
         @param The Blue, Red and Green pixel value
@@ -76,7 +74,12 @@ class BmpHandler
     */
     void createBorder(int, int, int, int);
     /*
-        This is a function to get square of a value
+        Converts 1-dimensional pixel data into 3-dimensional [RGB][ROW][COL]
+        @param buf 1-d pixel array
+    */
+    void convertTo3d(uint8_t *buf);
+
+    /*  This is a function to get square of a value
         @param value Enter the value to get square of
         @return square Returns the square of the value
     */
@@ -89,6 +92,7 @@ public:
         if(path is passed)
             The image will be loaded into {this->img}
     */
+
     BmpHandler(string = "");
     /*
         This is the destructor
@@ -103,10 +107,18 @@ public:
         This is the accessor for {this->path}
         @return The path of the BmpImage
     */
+
     string getPath() const;
+
+    /* Returns the pointer to pixel data */
+
+    unsigned char ***getImg()
+    {
+        return this->img;
+    }
     /*
-        This is the accessor for {this->img_dim.first}
-        @return The Height of the BmpImage
+            This is the accessor for {this->img_dim.first}
+            @return The Height of the BmpImage
     */
     int getImgHeight() const;
     /*
@@ -119,11 +131,7 @@ public:
        @return The Width of the BmpImage
     */
     int getImgWidth() const;
-    /*
-        This function will read and load the header into {this->header} and the dimensions of image into {this->img_dim}
-        This function will read the bmp image from the given {this->path + ".bmp"} and load it into {this->img}
-    */
-    void loadBmpImage();
+
     /*
         This function will write the bmp image to the given {this->path + "_w.bmp"}
         @param flag set true for original image, set false for modified image
@@ -151,9 +159,9 @@ public:
     void singleRowEdgeDetection(int, bool = false, int = 1, int = 3);
     /*
         If edge points have been detected and stored in {this->edgePoints}
-            we will take 8 neighbors of the edgePoints and compare the entire patch
-            with the corresponding row (x-axis) of 10 images of the right camera
-            ,to find the best matching patches we will use
+        we will take 8 neighbors of the edgePoints and compare the entire patch
+        with the corresponding row (x-axis) of 10 images of the right camera
+        ,to find the best matching patches we will use
         @param ImageB Pass the object of BmpReader containing the ImageB
         @param offset How many rows you want to move (up/down)
     */
