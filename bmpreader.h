@@ -1,9 +1,8 @@
 /*
         FYP-1 TK 1, bmpreader.h
         Purpose: To perform operations on bmp images
-
         @author Khawaja Shaheryar
-        @version 0.1 22/09/2022
+        @version 0.3 27/09/2022
 */
 
 #ifndef BMPREADER_H
@@ -47,12 +46,11 @@ class BmpHandler
     void allocateBuffer(unsigned char ***&);
     /*
         The bmp image is read and loaded into {this->img}.
-        For some reason reading directly into the 3d array doesnt work properly on windows
+        For some reason reading directly into the 3d array doesn't work properly on windows
         so it reads into intermediate 1-d Array and then converts to 3-d.
         Also populates the image dimensions
-        @param The file name
     */
-    int readImage(std::string filename);
+    int readImage();
     /*
         This will find and update minimum and maximum value from the BRG layers of the bmp image
         @param The Blue, Red and Green pixel value
