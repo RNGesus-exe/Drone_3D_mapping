@@ -6,7 +6,7 @@ BmpHandler::BmpHandler(string _path_) : path(_path_)
     this->isGrayScale = false;
     if (this->path != "")
     {
-        this->readImage(path);
+        this->readImage();
     }
 }
 
@@ -311,9 +311,9 @@ void BmpHandler::findMinMaxContrast(int blue, int red, int green)
     }
 }
 
-int BmpHandler::readImage(std::string filename)
+int BmpHandler::readImage()
 {
-    string name = filename + ".bmp";
+    string name = this->path + ".bmp";
     FILE *fileptr = fopen(name.c_str(), "rb");
     if (!fileptr)
     {
@@ -348,6 +348,7 @@ int BmpHandler::readImage(std::string filename)
     fclose(fileptr);
     this->convertTo3d(buf);
     delete[] buf;
+    buf = nullptr;
     return 1;
 }
 
@@ -398,7 +399,7 @@ void BmpHandler::writeBMPImage(bool imgType)
             }
         }
     }
-    FILE *file = fopen("imageA_w.bmp", "wb");
+    FILE *file = fopen((this->path + "_w.bmp").c_str(), "wb");
     if (file)
     {
         fwrite(this->header, 1, HEADER_LEN, file);
