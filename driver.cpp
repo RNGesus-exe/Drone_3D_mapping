@@ -8,6 +8,10 @@ int main()
 {
     srand(time(NULL)); // Seed
 
+    BmpHandler bmpA("imageA");
+    bmpA.applyGrayscale();
+    bmpA.singleRowEdgeDetection(bmpA.getImgHeight() / 2, true, 1, 2);
+    bmpA.writeBMPImage();
     BmpHandler bmpA("Images/imageA");
     // bmpA.applyAutoContrast();
     // bmpA.applyGrayscale();

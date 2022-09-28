@@ -1,0 +1,10 @@
+
+#Ignore all exes and project level bmp
+*.exe
+*.bmp
+
+#Unignore Images/ bmps
+!*Images/
+
+#Ignore VsCode
+.vscode/
