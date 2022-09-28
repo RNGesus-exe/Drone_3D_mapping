@@ -28,9 +28,9 @@ void BmpHandler::applyAutoContrast()
         {
             for (unsigned int col = 0; col < this->img_dim.second; ++col)
             {
-                this->img[0][row][col] = (this->img[0][row][col] - this->contrast[0][1]) * (255 / (this->contrast[0][0] - this->contrast[0][1]));
-                this->img[1][row][col] = (this->img[1][row][col] - this->contrast[1][1]) * (255 / (this->contrast[1][0] - this->contrast[1][1]));
-                this->img[2][row][col] = (this->img[2][row][col] - this->contrast[2][1]) * (255 / (this->contrast[2][0] - this->contrast[2][1]));
+                this->img[0][row][col] = (this->img[0][row][col] - this->contrast[0][1]) * (255 / this->abs(this->contrast[0][0] - this->contrast[0][1]));
+                this->img[1][row][col] = (this->img[1][row][col] - this->contrast[1][1]) * (255 / this->abs(this->contrast[1][0] - this->contrast[1][1]));
+                this->img[2][row][col] = (this->img[2][row][col] - this->contrast[2][1]) * (255 / this->abs(this->contrast[2][0] - this->contrast[2][1]));
             }
         }
     }
@@ -265,6 +265,9 @@ void BmpHandler::singleRowTemplateMatching(BmpHandler &bmpB, int rowOffSet)
                     }
                 }
 
+                cout << '\n'
+                     << best_ssd << '\n';
+
                 // 5) Print the most correlating point in the second image
                 bmpB.createBorder(best_coord.first - 1, best_coord.second - 1, best_coord.first + 1, best_coord.second + 1);
                 cout << "\n"
@@ -277,6 +280,117 @@ void BmpHandler::singleRowTemplateMatching(BmpHandler &bmpB, int rowOffSet)
     else
     {
         cerr << "\nThere were no edge points in {this->edgePoints}...";
+    }
+}
+
+void BmpHandler::applySobelEdgeDetection(int rowNo, bool horizontalFlag, bool verticalFlag, bool cleanFlag)
+{
+    if (this->isGrayScale)
+    {
+        if (((rowNo - 1) >= 0) &&
+            ((rowNo + 1) < this->img_dim.first))
+        {
+            // 1) Create a 1D array to hold the edgeData and the variable which will hold Gx and Gy
+            int *edgeData = new int[this->img_dim.second - 2]; // Subtracted two to avoid the first and last column
+            int Gx = 0;
+            int Gy = 0;
+
+            // 2) Define the vertical and horizontal filters
+            const int sobelVerticalMask[3][3] = {
+                {1, 0, -1},
+                {2, 0, -2},
+                {1, 0, -1}};
+            const int sobelHorizontalMask[3][3] = {
+                {1, 2, 1},
+                {0, 0, 0},
+                {-1, -2, -1}};
+
+            // 3) Apply Sobel Operation on the row : S = sqrt( Gx^2 + Gy^2 ) {Gx: Horizontal Sobel, Gy: Vertical Sobel}
+
+            for (int w = 1; w < (this->img_dim.second - 1); w++)
+            {
+                // Reset Gx and Gy
+                Gx = 0;
+                Gy = 0;
+
+                // Apply horizontal sobel on 3x3 patch {Gx}
+                if (horizontalFlag)
+                {
+                    for (int i = 0; i < 3; i++)
+                    {
+                        for (int j = 0; j < 3; j++)
+                        {
+                            Gx += (this->img[0][this->abs((rowNo - 1) + i)][(w - 1) + j] * sobelHorizontalMask[i][j]);
+                        }
+                    }
+                }
+
+                // Apply vertical sobel on 3x3 patch {Gy}
+                if (verticalFlag)
+                {
+                    for (int i = 0; i < 3; i++)
+                    {
+                        for (int j = 0; j < 3; j++)
+                        {
+                            Gy += (this->img[0][this->abs((rowNo - 1) + i)][(w - 1) + j] * sobelVerticalMask[i][j]);
+                        }
+                    }
+                }
+
+                // S = sqrt(Gx^2 + Gy^2)
+                edgeData[w - 1] = sqrt(this->pow(Gx) + this->pow(Gy));
+            }
+
+            // 4) Copy the edgeData into the Real Image
+            for (int w = 1; w < (this->img_dim.second - 1); w++)
+            {
+                this->img[0][rowNo][w] = edgeData[w - 1];
+                this->img[1][rowNo][w] = edgeData[w - 1];
+                this->img[2][rowNo][w] = edgeData[w - 1];
+            }
+
+            // 5) Deallocate the edgeData from Heap
+            delete[] edgeData;
+
+            // 6) Clean the Edges
+            if (cleanFlag)
+            {
+                for (int w = 1; w < (this->img_dim.second - 1); w++)
+                {
+                    for (int c = 0; c < COLOR_CHANNELS; c++)
+                    {
+                        if ((int)this->img[c][rowNo][w] >= 100)
+                        {
+                            this->img[c][rowNo][w] = 255;
+                        }
+                        else
+                        {
+                            this->img[c][rowNo][w] = 0;
+                        }
+                    }
+                }
+            }
+
+            // 7) Store the edge points in {this->edgePoints}
+            pair<int, int> coord;
+            for (int w = 1; w < (this->img_dim.second - 1); w++)
+            {
+                if ((int)this->img[0][rowNo][w] >= 100)
+                {
+                    coord.first = rowNo;
+                    coord.second = w;
+                    this->edgePoints.push_back(coord);
+                }
+            }
+        }
+        else
+        {
+            cerr << "\nThe maskSize or rowNo is out of bounds...";
+        }
+    }
+    else
+    {
+        cerr << "\n The image needs to be in grayscale...";
     }
 }
 
