@@ -20,6 +20,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <cmath>
 
 #define HEADER_LEN 54    // The size of the header is fixed for the bmp files
 #define COLOR_CHANNELS 3 // BGR
@@ -164,6 +165,15 @@ public:
         @param offset How many rows you want to move (up/down)
     */
     void singleRowTemplateMatching(BmpHandler &, int);
+    /*
+        The sobel vertical and horizontal operator will be applied on {this->img}
+            The points are then stored/appended in {this->edgePoints}
+        @param rowNo Which row to apply edgeDetection on
+        @param horizontalFlag true = Apply the horizontalFilter, false = vice versa
+        @param verticalFlag true = Apply the verticalFilter, false = vice versa
+        @param cleanFlag true = Clean the edges, false = Don't clean the edges
+    */
+    void applySobelEdgeDetection(int, bool = true, bool = true, bool = true);
 };
 
 #endif
