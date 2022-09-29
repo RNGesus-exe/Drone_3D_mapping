@@ -1,5 +1,7 @@
 #include "bmpreader.h"
 
+#define println(x) std::cout << x << std::endl
+
 BmpHandler::BmpHandler(string _path_) : path(_path_)
 {
     this->img = nullptr;
@@ -164,8 +166,7 @@ BmpHandler::~BmpHandler()
 
 void BmpHandler::createBorder(int x1, int y1, int x2, int y2)
 {
-    if ((x1 <= x2) ||
-        (y1 <= y2))
+    if ((x1 <= x2) || (y1 <= y2))
     {
         if ((x1 >= 0) &&
             (x2 < this->img_dim.first) &&
