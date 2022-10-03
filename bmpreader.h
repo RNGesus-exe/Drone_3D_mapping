@@ -53,9 +53,21 @@ class BmpHandler
     */
     int readImage();
     /*
+        Allocate memory for template matching patch.
+        @param buf Pointer to the 3d array
+        @param patchSize Size of the array
+    */
+    void allocatePatch(unsigned char ***&patch, int patchSize);
+    /*
+       De-Allocate memory for template matching patch.
+       @param buf Pointer to the 3d array
+       @param patchSize Size of the array
+   */
+    void deAllocatePatch(unsigned char ***&patch, int patchSize);
+    /*
         This will find and update minimum and maximum value from the BRG layers of the bmp image
         @param The Blue, Red and Green pixel value
-     */
+    */
     void findMinMaxContrast(int, int, int);
     /*
         There is an issue with the linux g++ compiler when using the abs() function
@@ -174,6 +186,16 @@ public:
         @param cleanFlag true = Clean the edges, false = Don't clean the edges
     */
     void applySobelEdgeDetection(int, bool = true, bool = true, bool = true);
+    /*
+        Match Sobel Edges
+        @param rowNo Which row to start matching on the other image
+        @param patchSize Size of the patch (Should be an odd number > 3)
+        @param img Object for the image you want to match on
+
+    */
+    void sobelTemplateMatch(int rowNo, int patchSize, BmpHandler &img);
+
+    void troubleShoot();
 };
 
 #endif
