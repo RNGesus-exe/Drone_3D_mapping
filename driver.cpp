@@ -4,35 +4,18 @@
     for (auto v : vec)     \
     cout << v.first << " " << v.second << endl
 
+// imageB is 5 pixel above imageA
 int main()
 {
     BmpHandler bmp("Images/imageA");
     BmpHandler bmp2("Images/imageB");
+
+    bmp.applyAutoContrast();
     bmp.applyGrayscale();
-    bmp.singleRowEdgeDetection(240, true, 1, 1);
+    bmp.applySobelEdgeDetection(bmp.getImgHeight() / 2);
+    bmp.sobelTemplateMatch(bmp2.getImgHeight() / 2, 9, bmp2);
     bmp.writeBMPImage();
-    srand(time(NULL)); // Seed
+    bmp2.writeBMPImage();
 
-    BmpHandler bmpA("Images/sampleA/left");
-    bmpA.applyAutoContrast();
-    bmpA.applyGrayscale();
-    int row = bmpA.getImgHeight() / 2;
-    // int row = 0;
-    // while ((row <= 10) ||
-    //        (row >= (bmpA.getImgHeight() - 10)))
-    // {
-    //     row = rand() % bmpA.getImgHeight();
-    // }
-    // bmpA.singleRowEdgeDetection(row, true);
-
-    // BmpHandler bmpB("Images/sampleA/right1");
-    // bmpA.singleRowTemplateMatching(bmpB, -10);
-
-    bmpA.applySobelEdgeDetection(row, false);
-    bmpA.writeBMPImage(false);
-    // bmpB.writeBMPImage(false);
-
-    // vector<pair<int, int>> vec = bmpA.getEdgePoint();
-    // printVecPairs(vec);
     return EXIT_SUCCESS;
 }
