@@ -169,15 +169,6 @@ public:
     */
     void singleRowEdgeDetection(int, bool = false, int = 1, int = 3);
     /*
-        If edge points have been detected and stored in {this->edgePoints}
-        we will take 8 neighbors of the edgePoints and compare the entire patch
-        with the corresponding row (x-axis) of 10 images of the right camera
-        ,to find the best matching patches we will use
-        @param ImageB Pass the object of BmpReader containing the ImageB
-        @param offset How many rows you want to move (up/down)
-    */
-    void singleRowTemplateMatching(BmpHandler &, int);
-    /*
         The sobel vertical and horizontal operator will be applied on {this->img}
             The points are then stored/appended in {this->edgePoints}
         @param rowNo Which row to apply edgeDetection on
@@ -191,7 +182,6 @@ public:
         @param rowNo Which row to start matching on the other image
         @param patchSize Size of the patch (Should be an odd number > 3)
         @param img Object for the image you want to match on
-
     */
     void sobelTemplateMatch(int rowNo, int patchSize, BmpHandler &img);
 

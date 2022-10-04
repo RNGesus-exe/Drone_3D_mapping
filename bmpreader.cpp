@@ -166,7 +166,8 @@ BmpHandler::~BmpHandler()
 
 void BmpHandler::createBorder(int x1, int y1, int x2, int y2)
 {
-    if ((x1 <= x2) || (y1 <= y2))
+    if ((x1 <= x2) &&
+        (y1 <= y2))
     {
         if ((x1 >= 0) &&
             (x2 < this->img_dim.first) &&
@@ -219,69 +220,6 @@ void BmpHandler::createBorder(int x1, int y1, int x2, int y2)
 int BmpHandler::pow(int val)
 {
     return val * val;
-}
-
-void BmpHandler::singleRowTemplateMatching(BmpHandler &bmpB, int rowOffSet)
-{
-    if (this->edgePoints.size() > 0)
-    {
-        const int patch_row = 5;
-        const int patch_col = 5;
-        char patch[COLOR_CHANNELS][patch_row][patch_col]; // Temporary buffer which will hold the patch
-        for (int i = 0; i < this->edgePoints.size(); i++)
-        {
-            int best_ssd;
-            int curr_ssd;
-            pair<int, int> best_coord; // This will store the index (x,y) for the best ssd
-            for (int edge_no = 0; edge_no < this->edgePoints.size(); edge_no++)
-            {
-                best_ssd = INT32_MAX;
-                // Compare with all patches in a row of ImageB
-                for (int col = 2; col < (this->edgePoints[edge_no].second - 2); col++)
-                {
-                    // Compare and find SSD of each patch
-                    curr_ssd = 0;
-                    for (int c = 0; c < COLOR_CHANNELS; c++)
-                    {
-                        for (int r = 0; r < 5; r++)
-                        {
-                            for (int w = 0; w < 5; w++)
-                            {
-                                curr_ssd += this->pow(this->abs(this->original_img[c]
-                                                                                  [(this->edgePoints[edge_no].first - 2) + r]
-                                                                                  [(this->edgePoints[edge_no].second - 2) + w] -
-                                                                bmpB.original_img[c]
-                                                                                 [(this->edgePoints[edge_no].first + rowOffSet - 2) + r]
-                                                                                 [(col - 2) + w]));
-                            }
-                        }
-                    }
-
-                    // Compare curr_ssd with best_ssd
-                    if (curr_ssd < best_ssd)
-                    {
-                        best_ssd = curr_ssd;
-                        best_coord.first = this->edgePoints[edge_no].first + rowOffSet;
-                        best_coord.second = col;
-                    }
-                }
-
-                cout << '\n';
-
-                // 5) Print the most correlating point in the second image
-                bmpB.createBorder(best_coord.first - 1, best_coord.second - 1, best_coord.first + 1, best_coord.second + 1);
-                cout << "\n"
-                     << edgePoints[edge_no].first << "," << edgePoints[edge_no].second
-                     << " = "
-                     << best_coord.first << "," << best_coord.second
-                     << " , " << best_ssd;
-            }
-        }
-    }
-    else
-    {
-        cerr << "\nThere were no edge points in {this->edgePoints}...";
-    }
 }
 
 void BmpHandler::applySobelEdgeDetection(int rowNo, bool horizontalFlag, bool verticalFlag, bool cleanFlag)
@@ -356,6 +294,7 @@ void BmpHandler::applySobelEdgeDetection(int rowNo, bool horizontalFlag, bool ve
             // 6) Clean the Edges
             if (cleanFlag)
             {
+                // a) First make the the edge into salt & pepper
                 for (int w = 1; w < (this->img_dim.second - 1); w++)
                 {
                     for (int c = 0; c < COLOR_CHANNELS; c++)
@@ -365,6 +304,18 @@ void BmpHandler::applySobelEdgeDetection(int rowNo, bool horizontalFlag, bool ve
                             this->img[c][rowNo][w] = 255;
                         }
                         else
+                        {
+                            this->img[c][rowNo][w] = 0;
+                        }
+                    }
+                }
+
+                // b) Remove clusters of salts
+                for (int w = 1; w < (this->img_dim.second - 2); w++)
+                {
+                    for (int c = 0; c < COLOR_CHANNELS; c++)
+                    {
+                        if ((int)this->img[c][rowNo][w] == (int)this->img[c][rowNo][w + 1])
                         {
                             this->img[c][rowNo][w] = 0;
                         }
@@ -394,7 +345,7 @@ void BmpHandler::applySobelEdgeDetection(int rowNo, bool horizontalFlag, bool ve
         cerr << "\n The image needs to be in grayscale...";
     }
 }
-void BmpHandler::sobelTemplateMatch(int rowNo, int patchSize, BmpHandler &img)
+void BmpHandler::sobelTemplateMatch(int rowNo, int patchSize, BmpHandler &bmpB)
 {
     if ((patchSize % 2 == 0) || patchSize < 3)
     {
@@ -403,9 +354,10 @@ void BmpHandler::sobelTemplateMatch(int rowNo, int patchSize, BmpHandler &img)
     }
 
     pair<int, int> edge = this->edgePoints[0];
-    unsigned char ***imageB = img.getImg();
+    cout << this->edgePoints[0].first << " " << this->edgePoints[0].second << endl;
+    unsigned char ***imageB = bmpB.getImg();
     unsigned char ***patch;
-    allocatePatch(patch, patchSize);
+    allocatePatch(patch, patchSize); // allocation on Heap
     println("Patch Allocated");
 
     // populate patch
@@ -415,10 +367,9 @@ void BmpHandler::sobelTemplateMatch(int rowNo, int patchSize, BmpHandler &img)
                 patch[i][r][w] = this->original_img[i][edge.first + (r - ((patchSize - 1) / 2))][edge.second + (w - ((patchSize - 1) / 2))];
 
     int ssd = 0;
-    int color = 0;
     int min_ssd = INT32_MAX;
     pair<int, int> match_coord;
-    for (int w = 10; w < img.getImgWidth() - 10; w++)
+    for (int w = 10; w < bmpB.getImgWidth() - 10; w++)
     {
         ssd = 0;
         for (int r = 0; r < patchSize; r++)
@@ -427,24 +378,26 @@ void BmpHandler::sobelTemplateMatch(int rowNo, int patchSize, BmpHandler &img)
             {
                 for (int k = 0; k < 3; k++)
                 {
-                    int a = (int)patch[k][r][c];
-                    int b = (int)imageB[k][rowNo + (r - ((patchSize - 1) / 2))][w - ((patchSize - 1) / 2)];
-                    ssd += pow(abs(a - b));
+                    ssd += this->pow(this->abs((int)patch[k][r][c] -
+                                               (int)bmpB.original_img[k][rowNo + (r - ((patchSize - 1) / 2))][w - ((patchSize - 1) / 2)]));
                 }
             }
         }
         // std::cout << "SSD : " << ssd << std::endl;
-        if (ssd <= min_ssd)
+        if (ssd < min_ssd)
         {
             min_ssd = ssd;
             match_coord.first = rowNo;
             match_coord.second = w;
+            cout << rowNo << " " << w << " = " << ssd << endl;
         }
     }
+    cout << match_coord.first << " " << match_coord.second << endl;
     // threshold for a match -> 150000
     std::cout << "Minimum Distance : " << min_ssd << std::endl;
-    img.createBorder(match_coord.second - 1, match_coord.first - 1, match_coord.second + 1, match_coord.first + 1);
-    deAllocatePatch(patch, patchSize);
+    bmpB.createBorder(match_coord.first - (patchSize - 1) / 2, match_coord.second - (patchSize - 1) / 2,
+                      match_coord.first + (patchSize - 1) / 2, match_coord.second + (patchSize - 1) / 2);
+    deAllocatePatch(patch, patchSize); // deallocation on Heap
 }
 
 void BmpHandler::findMinMaxContrast(int blue, int red, int green)
@@ -597,8 +550,8 @@ void BmpHandler::allocateBuffer(unsigned char ***&buf)
 
 void BmpHandler::allocatePatch(unsigned char ***&patch, int patchSize)
 {
-    patch = new unsigned char **[3];
-    for (int color = 0; color < 3; ++color)
+    patch = new unsigned char **[COLOR_CHANNELS];
+    for (int color = 0; color < COLOR_CHANNELS; ++color)
     {
         patch[color] = new unsigned char *[patchSize];
         for (int c = 0; c < patchSize; c++)
@@ -610,13 +563,17 @@ void BmpHandler::allocatePatch(unsigned char ***&patch, int patchSize)
 
 void BmpHandler::deAllocatePatch(unsigned char ***&patch, int patchSize)
 {
-    for (int i = 0; i < COLOR_CHANNELS; ++i)
+    if (patch)
     {
-        for (int j = 0; j < patchSize; ++j)
+        for (int i = 0; i < COLOR_CHANNELS; ++i)
         {
-            delete[] patch[i][j];
+            for (int j = 0; j < patchSize; ++j)
+            {
+                delete[] patch[i][j];
+            }
+            delete[] patch[i];
         }
         delete[] patch;
+        patch = nullptr;
     }
-    delete[] patch;
 }
