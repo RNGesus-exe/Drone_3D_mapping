@@ -1,8 +1,8 @@
 /*
-        FYP-1 TK 1, bmpreader.h
+        FYP-1, bmpreader.h
         Purpose: To perform operations on bmp images
         @author Khawaja Shaheryar
-        @version 0.3 27/09/2022
+        @version 0.5 7/10/2022
 */
 
 #ifndef BMPREADER_H
@@ -184,6 +184,8 @@ public:
         @param img Object for the image you want to match on
     */
     void sobelTemplateMatch(int rowNo, int patchSize, BmpHandler &img);
+
+    void grayScaleTemplateMatch(int, int, int, BmpHandler &);
 
     void troubleShoot();
 };

@@ -345,6 +345,76 @@ void BmpHandler::applySobelEdgeDetection(int rowNo, bool horizontalFlag, bool ve
         cerr << "\n The image needs to be in grayscale...";
     }
 }
+
+void BmpHandler::grayScaleTemplateMatch(int rowNo, int patchSize, int rowOffset, BmpHandler &bmpB)
+{
+    // CHECK EDGE POINTS
+    if (this->edgePoints.size() <= 0)
+    {
+        cerr << "\nThere were no edge points in {this->edgePoints}...";
+        return;
+    }
+
+    // CHECK PATCH SIZE
+    if ((patchSize % 2 == 0) || patchSize < 3)
+    {
+        cerr << "Invalid Patch Size. Please make patch > 3 and odd";
+        return;
+    }
+
+    // CHECK IF IMAGES ARE GRAYSCALE
+    if ((!this->isGrayScale) ||
+        (!bmpB.isGrayScale))
+    {
+        cerr << "\nOne of the images don't seem to be in grayscale...";
+        return;
+    }
+
+    // cout << this->edgePoints[0].first << " " << this->edgePoints[0].second << endl;
+
+    int curr_ssd = 0;
+    int best_ssd = INT32_MAX;
+    pair<int, int> best_coord;
+    for (int edgeNo = 0; edgeNo < this->edgePoints.size(); edgeNo++) // Only 1 edge Point will be match for now
+    {
+        best_ssd = INT32_MAX;
+        for (int col = (patchSize - 1); col < (bmpB.getImgWidth() - (patchSize - 1)); col++)
+        {
+            curr_ssd = 0;
+            for (int r = 0; r < patchSize; r++)
+            {
+                for (int w = 0; w < patchSize; w++)
+                {
+                    curr_ssd += this->pow(this->abs(this->img[0]
+                                                             [(this->edgePoints[edgeNo].first - (patchSize - 1) / 2) + r]
+                                                             [(this->edgePoints[edgeNo].second - (patchSize - 1) / 2) + w] -
+                                                    bmpB.img[0]
+                                                            [(this->edgePoints[edgeNo].first + rowOffset - (patchSize - 1) / 2) + r]
+                                                            [(col - (patchSize - 1) / 2) + w]));
+                }
+            }
+            // Compare curr_ssd with best_ssd
+            if (curr_ssd < best_ssd)
+            {
+                best_ssd = curr_ssd;
+                best_coord.first = this->edgePoints[edgeNo].first + rowOffset;
+                best_coord.second = col;
+            }
+        }
+        if ((this->abs(best_coord.second - edgePoints[edgeNo].second) < this->getImgWidth() / 2) &&
+            (best_coord.second > edgePoints[edgeNo].second))
+        {
+            bmpB.createBorder(best_coord.first - (patchSize - 1) / 2, best_coord.second - (patchSize - 1) / 2,
+                              best_coord.first + (patchSize - 1) / 2, best_coord.second + (patchSize - 1) / 2);
+            cout << "\n Left = "
+                 << edgePoints[edgeNo].first << "," << edgePoints[edgeNo].second
+                 << ", Right = "
+                 << best_coord.first << "," << best_coord.second
+                 << " , Error = " << best_ssd;
+        }
+    }
+}
+
 void BmpHandler::sobelTemplateMatch(int rowNo, int patchSize, BmpHandler &bmpB)
 {
     if ((patchSize % 2 == 0) || patchSize < 3)

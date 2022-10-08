@@ -6,13 +6,14 @@
 
 int main()
 {
-    BmpHandler bmp("Images/imageA");
-    BmpHandler bmp2("Images/imageB");
-
-    bmp.applyAutoContrast();
+    BmpHandler bmp("Images/sampleB/left");
     bmp.applyGrayscale();
+
+    BmpHandler bmp2("Images/sampleB/right1");
+    bmp2.applyGrayscale();
+
     bmp.applySobelEdgeDetection(bmp.getImgHeight() / 2, false);
-    bmp.sobelTemplateMatch(bmp2.getImgHeight() / 2, 9, bmp2);
+    bmp.grayScaleTemplateMatch(bmp.getImgHeight() / 2, 21, 0, bmp2);
     bmp.writeBMPImage();
     bmp2.writeBMPImage();
 
