@@ -6,16 +6,23 @@
 
 int main()
 {
-    BmpHandler bmp("Images/sampleB/left");
+    BmpHandler bmp("Images/imageA");
     bmp.applyGrayscale();
-
-    BmpHandler bmp2("Images/sampleB/right1");
-    bmp2.applyGrayscale();
-
-    bmp.applySobelEdgeDetection(bmp.getImgHeight() / 2, false);
-    bmp.grayScaleTemplateMatch(bmp.getImgHeight() / 2, 21, 0, bmp2);
+    bmp.applySobelEdgeDetection(bmp.getImgHeight() / 2, false, true, true, 21);
     bmp.writeBMPImage();
+
+    BmpHandler bmp2;
+    // for (int i = 1; i <= 10; i++)
+    // {
+    //     bmp2.setPath("Images/sampleC/right" + to_string(i));
+    bmp2.setPath("Images/imageB");
+    bmp2.applyGrayscale();
+    // bmp.grayScaleTemplateMatch(bmp.getImgHeight() / 2, 21, 0, bmp2);
+    bmp.sobelTemplateMatch(bmp.getImgHeight() / 2, 21, 0, bmp2);
     bmp2.writeBMPImage();
+    bmp2.cleanUp();
+    bmp.eraseRightEdgePoints();
+    // }
 
     // vector<pair<int, int>> vec = bmpA.getEdgePoint();
     // printVecPairs(vec);

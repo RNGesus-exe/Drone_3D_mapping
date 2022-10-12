@@ -25,6 +25,8 @@
 #define HEADER_LEN 54    // The size of the header is fixed for the bmp files
 #define COLOR_CHANNELS 3 // BGR
 
+#define println(x) std::cout << x << std::endl
+
 using namespace std;
 
 class BmpHandler
@@ -32,11 +34,13 @@ class BmpHandler
     pair<uint16_t, uint16_t> img_dim;                                 // This will store the {Height x Width}{first x second} of the bmp image
     unsigned char ***original_img;                                    // This will hold the original bitmap image
     unsigned char ***img;                                             // This will hold the BRG image
+    unsigned char ***grayscale_img;                                   // This will hold the grayscale image
     string path;                                                      // This will store the path of the bmp image
     char header[HEADER_LEN];                                          // This will store the header of the bmp image
     int contrast[COLOR_CHANNELS][2] = {{0, 255}, {0, 255}, {0, 255}}; // Holds lowest and highest value of 3 channels
     bool isGrayScale;                                                 // A flag which indicates if the image is in grayscale or not
-    vector<pair<int, int>> edgePoints;                                // This will hold the coordinates{x,y} of the edges detected in the bitmap image
+    vector<pair<int, int>> leftEdgePoints;                            // This will hold the coordinates{x,y} of the edges detected in the left bitmap image
+    vector<pair<int, int>> rightEdgePoints;                           // This will hold the coordinates{x,y} of the edges detected in the right bitmap image
 
     /*
         Allocates memory for {this->img} data member
@@ -82,8 +86,9 @@ class BmpHandler
         @param y1 starting y coordinate
         @param x2 ending x coordinate
         @param y2 ending y coordinate
+        @param color 1:blue 2:green 3:red
     */
-    void createBorder(int, int, int, int);
+    void createBorder(int, int, int, int, int);
     /*
         Converts 1-dimensional pixel data into 3-dimensional [RGB][ROW][COL]
         @param buf 1-d pixel array
@@ -136,7 +141,7 @@ public:
         This will return the vector holding the edge points of the bitmap image in {this->img}
         @return A vector of pair with edge points of the bitmap image
     */
-    vector<pair<int, int>> getEdgePoint() const;
+    vector<pair<int, int>> getLeftEdgePoint() const;
     /*
        This is the accessor for {this->img_dim.second}
        @return The Width of the BmpImage
@@ -176,16 +181,22 @@ public:
         @param verticalFlag true = Apply the verticalFilter, false = vice versa
         @param cleanFlag true = Clean the edges, false = Don't clean the edges
     */
-    void applySobelEdgeDetection(int, bool = true, bool = true, bool = true);
+    void applySobelEdgeDetection(int, bool = true, bool = true, bool = true, int = 3);
     /*
         Match Sobel Edges
         @param rowNo Which row to start matching on the other image
         @param patchSize Size of the patch (Should be an odd number > 3)
         @param img Object for the image you want to match on
     */
-    void sobelTemplateMatch(int rowNo, int patchSize, BmpHandler &img);
+    void sobelTemplateMatch(int, int, int, BmpHandler &img);
+
+    bool applySobelEdgeDetectionOnPatch(int, int, int, int, bool = true, bool = true, bool = true);
 
     void grayScaleTemplateMatch(int, int, int, BmpHandler &);
+
+    void cleanUp();
+
+    void eraseRightEdgePoints();
 
     void troubleShoot();
 };

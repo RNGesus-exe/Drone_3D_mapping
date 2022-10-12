@@ -1,7 +1,5 @@
 #include "bmpreader.h"
 
-#define println(x) std::cout << x << std::endl
-
 BmpHandler::BmpHandler(string _path_) : path(_path_)
 {
     this->img = nullptr;
@@ -53,6 +51,7 @@ void BmpHandler::applyGrayscale()
                 // 0.299 ∙ Red + 0.587 ∙ Green + 0.114 ∙ Blue (Another way to grayscale)
                 // go_board.image[0][row][width] = go_board.image[1][row][width] =  go_board.image[2][row][width] = 0.299 * go_board.tmpbuf[2] + 0.587 * go_board.tmpbuf[1] + 0.114 * go_board.tmpbuf[0]
                 this->img[0][row][col] = this->img[1][row][col] = this->img[2][row][col] = (this->img[0][row][col] + this->img[1][row][col] + this->img[2][row][col]) / 3;
+                this->grayscale_img[0][row][col] = this->grayscale_img[1][row][col] = this->grayscale_img[2][row][col] = (this->img[0][row][col] + this->img[1][row][col] + this->img[2][row][col]) / 3;
             }
         }
         isGrayScale = true;
@@ -68,9 +67,9 @@ int BmpHandler::abs(int val)
     return (val >= 0) ? val : (-1 * val);
 }
 
-vector<pair<int, int>> BmpHandler::getEdgePoint() const
+vector<pair<int, int>> BmpHandler::getLeftEdgePoint() const
 {
-    return this->edgePoints;
+    return this->leftEdgePoints;
 }
 
 void BmpHandler::singleRowEdgeDetection(int row, bool displayEdges, int padding, int skip_amount)
@@ -90,12 +89,12 @@ void BmpHandler::singleRowEdgeDetection(int row, bool displayEdges, int padding,
                         // Store the coords in a vector
                         coord.first = row;
                         coord.second = col;
-                        edgePoints.push_back(coord);
+                        leftEdgePoints.push_back(coord);
 
                         // Make the edges detected visible (white)
                         if (displayEdges)
                         {
-                            this->createBorder(row - 1, col - 1, row + 1, col + 1);
+                            this->createBorder(row - 1, col - 1, row + 1, col + 1, 1);
                         }
 
                         // To make sure pixels aren't clumped together, we will skip an extra step
@@ -121,7 +120,6 @@ void BmpHandler::singleRowEdgeDetection(int row, bool displayEdges, int padding,
 
 void BmpHandler::setPath(string _path_)
 {
-
     if (_path_ == "")
     {
         cerr << "\nYou can't pass an empty char array as a path...";
@@ -129,7 +127,62 @@ void BmpHandler::setPath(string _path_)
     else
     {
         this->path = _path_;
+        this->readImage();
     }
+}
+
+void BmpHandler::cleanUp()
+{
+    // Deallocation of original image
+    if (this->img)
+    {
+        for (int i = 0; i < COLOR_CHANNELS; ++i)
+        {
+            for (int j = 0; j < this->img_dim.first; ++j)
+            {
+                delete[] this->img[i][j];
+            }
+            delete[] this->img[i];
+        }
+        delete[] this->img;
+        this->img = nullptr;
+    }
+
+    if (this->original_img)
+    {
+        for (int i = 0; i < COLOR_CHANNELS; ++i)
+        {
+            for (int j = 0; j < this->img_dim.first; ++j)
+            {
+                delete[] this->original_img[i][j];
+            }
+            delete[] this->original_img[i];
+        }
+        delete[] this->original_img;
+        this->original_img = nullptr;
+    }
+
+    if (this->grayscale_img)
+    {
+        for (int i = 0; i < COLOR_CHANNELS; ++i)
+        {
+            for (int j = 0; j < this->img_dim.first; ++j)
+            {
+                delete[] this->grayscale_img[i][j];
+            }
+            delete[] this->grayscale_img[i];
+        }
+        delete[] this->grayscale_img;
+        this->grayscale_img = nullptr;
+    }
+
+    leftEdgePoints.clear();
+    rightEdgePoints.clear();
+}
+
+void BmpHandler::eraseRightEdgePoints()
+{
+    this->rightEdgePoints.clear();
 }
 
 BmpHandler::~BmpHandler()
@@ -162,9 +215,12 @@ BmpHandler::~BmpHandler()
         delete[] this->original_img;
         this->original_img = nullptr;
     }
+
+    leftEdgePoints.clear();
+    rightEdgePoints.clear();
 }
 
-void BmpHandler::createBorder(int x1, int y1, int x2, int y2)
+void BmpHandler::createBorder(int x1, int y1, int x2, int y2, int color)
 {
     if ((x1 <= x2) &&
         (y1 <= y2))
@@ -174,36 +230,107 @@ void BmpHandler::createBorder(int x1, int y1, int x2, int y2)
             (y1 >= 0) &&
             (y2 < this->img_dim.second))
         {
-            // (x1,y1) to (x1,y2) Top Line
-            for (unsigned int col = y1; col <= y2; ++col)
+            switch (color)
             {
-                this->img[0][x1][col] = 255;
-                this->img[1][x1][col] = 0;
-                this->img[2][x1][col] = 0;
-            }
+            case 1:
+                // (x1,y1) to (x1,y2) Top Line
+                for (unsigned int col = y1; col <= y2; ++col)
+                {
+                    this->img[0][x1][col] = 255;
+                    this->img[1][x1][col] = 0;
+                    this->img[2][x1][col] = 0;
+                }
 
-            // (x2,y1) to (x2,y2) Bottom Line
-            for (unsigned int col = y1; col <= y2; ++col)
-            {
-                this->img[0][x2][col] = 255;
-                this->img[1][x2][col] = 0;
-                this->img[2][x2][col] = 0;
-            }
+                // (x2,y1) to (x2,y2) Bottom Line
+                for (unsigned int col = y1; col <= y2; ++col)
+                {
+                    this->img[0][x2][col] = 255;
+                    this->img[1][x2][col] = 0;
+                    this->img[2][x2][col] = 0;
+                }
 
-            // (x1,y1) to (x2,y1) Left Line
-            for (unsigned int row = x1; row <= x2; ++row)
-            {
-                this->img[0][row][y1] = 255;
-                this->img[1][row][y1] = 0;
-                this->img[2][row][y1] = 0;
-            }
+                // (x1,y1) to (x2,y1) Left Line
+                for (unsigned int row = x1; row <= x2; ++row)
+                {
+                    this->img[0][row][y1] = 255;
+                    this->img[1][row][y1] = 0;
+                    this->img[2][row][y1] = 0;
+                }
 
-            // (x1,y2) to (x2,y2) Right Line
-            for (unsigned int row = x1; row <= x2; ++row)
-            {
-                this->img[0][row][y2] = 255;
-                this->img[1][row][y2] = 0;
-                this->img[2][row][y2] = 0;
+                // (x1,y2) to (x2,y2) Right Line
+                for (unsigned int row = x1; row <= x2; ++row)
+                {
+                    this->img[0][row][y2] = 255;
+                    this->img[1][row][y2] = 0;
+                    this->img[2][row][y2] = 0;
+                }
+                break;
+            case 2:
+                // (x1,y1) to (x1,y2) Top Line
+                for (unsigned int col = y1; col <= y2; ++col)
+                {
+                    this->img[0][x1][col] = 0;
+                    this->img[1][x1][col] = 255;
+                    this->img[2][x1][col] = 0;
+                }
+
+                // (x2,y1) to (x2,y2) Bottom Line
+                for (unsigned int col = y1; col <= y2; ++col)
+                {
+                    this->img[0][x2][col] = 0;
+                    this->img[1][x2][col] = 255;
+                    this->img[2][x2][col] = 0;
+                }
+
+                // (x1,y1) to (x2,y1) Left Line
+                for (unsigned int row = x1; row <= x2; ++row)
+                {
+                    this->img[0][row][y1] = 0;
+                    this->img[1][row][y1] = 255;
+                    this->img[2][row][y1] = 0;
+                }
+
+                // (x1,y2) to (x2,y2) Right Line
+                for (unsigned int row = x1; row <= x2; ++row)
+                {
+                    this->img[0][row][y2] = 0;
+                    this->img[1][row][y2] = 255;
+                    this->img[2][row][y2] = 0;
+                }
+                break;
+            case 3:
+                // (x1,y1) to (x1,y2) Top Line
+                for (unsigned int col = y1; col <= y2; ++col)
+                {
+                    this->img[0][x1][col] = 0;
+                    this->img[1][x1][col] = 0;
+                    this->img[2][x1][col] = 255;
+                }
+
+                // (x2,y1) to (x2,y2) Bottom Line
+                for (unsigned int col = y1; col <= y2; ++col)
+                {
+                    this->img[0][x2][col] = 0;
+                    this->img[1][x2][col] = 0;
+                    this->img[2][x2][col] = 255;
+                }
+
+                // (x1,y1) to (x2,y1) Left Line
+                for (unsigned int row = x1; row <= x2; ++row)
+                {
+                    this->img[0][row][y1] = 0;
+                    this->img[1][row][y1] = 0;
+                    this->img[2][row][y1] = 255;
+                }
+
+                // (x1,y2) to (x2,y2) Right Line
+                for (unsigned int row = x1; row <= x2; ++row)
+                {
+                    this->img[0][row][y2] = 0;
+                    this->img[1][row][y2] = 0;
+                    this->img[2][row][y2] = 255;
+                }
+                break;
             }
         }
         else
@@ -222,15 +349,15 @@ int BmpHandler::pow(int val)
     return val * val;
 }
 
-void BmpHandler::applySobelEdgeDetection(int rowNo, bool horizontalFlag, bool verticalFlag, bool cleanFlag)
+void BmpHandler::applySobelEdgeDetection(int rowNo, bool horizontalFlag, bool verticalFlag, bool cleanFlag, int patchSize)
 {
     if (this->isGrayScale)
     {
-        if (((rowNo - 1) >= 0) &&
-            ((rowNo + 1) < this->img_dim.first))
+        if (((rowNo - patchSize) >= 0) &&
+            ((rowNo + patchSize) < this->img_dim.first))
         {
             // 1) Create a 1D array to hold the edgeData and the variable which will hold Gx and Gy
-            int *edgeData = new int[this->img_dim.second - 2]; // Subtracted two to avoid the first and last column
+            int *edgeData = new int[this->img_dim.second - (patchSize * 2)]; // Subtracted two to avoid the first and last column
             int Gx = 0;
             int Gy = 0;
 
@@ -245,8 +372,7 @@ void BmpHandler::applySobelEdgeDetection(int rowNo, bool horizontalFlag, bool ve
                 {-1, -2, -1}};
 
             // 3) Apply Sobel Operation on the row : S = sqrt( Gx^2 + Gy^2 ) {Gx: Horizontal Sobel, Gy: Vertical Sobel}
-
-            for (int w = 1; w < (this->img_dim.second - 1); w++)
+            for (int w = patchSize; w < (this->img_dim.second - patchSize); w++)
             {
                 // Reset Gx and Gy
                 Gx = 0;
@@ -277,61 +403,59 @@ void BmpHandler::applySobelEdgeDetection(int rowNo, bool horizontalFlag, bool ve
                 }
 
                 // S = sqrt(Gx^2 + Gy^2)
-                edgeData[w - 1] = sqrt(this->pow(Gx) + this->pow(Gy));
+                edgeData[w - patchSize] = sqrt(this->pow(Gx) + this->pow(Gy));
             }
 
-            // 4) Copy the edgeData into the Real Image
-            for (int w = 1; w < (this->img_dim.second - 1); w++)
-            {
-                this->img[0][rowNo][w] = edgeData[w - 1];
-                this->img[1][rowNo][w] = edgeData[w - 1];
-                this->img[2][rowNo][w] = edgeData[w - 1];
-            }
-
-            // 5) Deallocate the edgeData from Heap
-            delete[] edgeData;
-
-            // 6) Clean the Edges
+            // 4) Clean the Edges
             if (cleanFlag)
             {
-                // a) First make the the edge into salt & pepper
-                for (int w = 1; w < (this->img_dim.second - 1); w++)
+                int counter = 0;
+                for (int w = 0; w < (this->img_dim.second - patchSize * 2); w++)
                 {
-                    for (int c = 0; c < COLOR_CHANNELS; c++)
+                    if ((int)edgeData[w] >= 100)
                     {
-                        if ((int)this->img[c][rowNo][w] >= 100)
-                        {
-                            this->img[c][rowNo][w] = 255;
-                        }
-                        else
-                        {
-                            this->img[c][rowNo][w] = 0;
-                        }
-                    }
-                }
+                        // 4.1) First make the the edge into salt & pepper
+                        edgeData[w] = 255;
 
-                // b) Remove clusters of salts
-                for (int w = 1; w < (this->img_dim.second - 2); w++)
-                {
-                    for (int c = 0; c < COLOR_CHANNELS; c++)
-                    {
-                        if ((int)this->img[c][rowNo][w] == (int)this->img[c][rowNo][w + 1])
+                        // 4.2) Remove clusters of salts
+                        counter = 1;
+                        while (counter < patchSize)
                         {
-                            this->img[c][rowNo][w] = 0;
+                            edgeData[w + counter] = 0;
+                            counter++;
                         }
+                        w += (counter - 1);
+                    }
+                    else
+                    {
+                        edgeData[w] = 0;
                     }
                 }
             }
 
-            // 7) Store the edge points in {this->edgePoints}
+            // 5) Copy the edgeData into the Real Image
+            for (int w = patchSize; w < (this->img_dim.second - patchSize); w++)
+            {
+                this->img[0][rowNo][w] =
+                    this->img[1][rowNo][w] =
+                        this->img[2][rowNo][w] = edgeData[w - patchSize];
+            }
+
+            // 6) Deallocate the edgeData from Heap
+            delete[] edgeData;
+            edgeData = nullptr;
+
+            // 7) Store the edge points in {this->leftEdgePoints}
             pair<int, int> coord;
-            for (int w = 1; w < (this->img_dim.second - 1); w++)
+            for (int w = patchSize; w < (this->img_dim.second - patchSize); w++)
             {
                 if ((int)this->img[0][rowNo][w] >= 100)
                 {
                     coord.first = rowNo;
                     coord.second = w;
-                    this->edgePoints.push_back(coord);
+                    this->leftEdgePoints.push_back(coord);
+                    this->createBorder(coord.first - (patchSize) / 2, coord.second - (patchSize) / 2,
+                                       coord.first + (patchSize) / 2, coord.second + (patchSize) / 2, 2);
                 }
             }
         }
@@ -346,12 +470,146 @@ void BmpHandler::applySobelEdgeDetection(int rowNo, bool horizontalFlag, bool ve
     }
 }
 
-void BmpHandler::grayScaleTemplateMatch(int rowNo, int patchSize, int rowOffset, BmpHandler &bmpB)
+bool BmpHandler::applySobelEdgeDetectionOnPatch(int x1, int y1, int x2, int y2, bool horizontalFlag, bool verticalFlag, bool cleanUp)
+{
+    // 1) Apply constraint checks
+    if ((this->isGrayScale) &&
+        (x1 <= x2) &&
+        (y1 <= y2) &&
+        (x1 > 0) &&
+        (x2 < (this->img_dim.first - 1)) &&
+        (y1 > 0) &&
+        (y2 < (this->img_dim.second - 1)))
+    {
+        // 2) Allocate memory
+        int **edgeData = new int *[(x2 - x1) + 1];
+        for (int r = 0; r <= (x2 - x1); r++)
+        {
+            edgeData[r] = new int[(y2 - y1) + 1];
+        }
+        int Gx = 0;
+        int Gy = 0;
+
+        // 3) Define the vertical and horizontal filters
+        const int sobelVerticalMask[3][3] = {
+            {1, 0, -1},
+            {2, 0, -2},
+            {1, 0, -1}};
+        const int sobelHorizontalMask[3][3] = {
+            {1, 2, 1},
+            {0, 0, 0},
+            {-1, -2, -1}};
+
+        // 4) Apply Sobel Operation on the patch : S = sqrt( Gx^2 + Gy^2 ) {Gx: Horizontal Sobel, Gy: Vertical Sobel}
+        for (int row = x1; row < (x2 + 1); row++)
+        {
+            for (int col = y1; col < (y2 + 1); col++)
+            {
+                // Reset Gx and Gy
+                Gx = 0;
+                Gy = 0;
+
+                // Apply horizontal sobel on 3x3 patch {Gx}
+                if (horizontalFlag)
+                {
+                    for (int i = 0; i < 3; i++)
+                    {
+                        for (int j = 0; j < 3; j++)
+                        {
+                            Gx += (this->img[0][(row - 1) + i][(col - 1) + j] * sobelHorizontalMask[i][j]);
+                        }
+                    }
+                }
+
+                // Apply vertical sobel on 3x3 patch {Gy}
+                if (verticalFlag)
+                {
+                    for (int i = 0; i < 3; i++)
+                    {
+                        for (int j = 0; j < 3; j++)
+                        {
+                            Gy += (this->img[0][(row - 1) + i][(col - 1) + j] * sobelVerticalMask[i][j]);
+                        }
+                    }
+                }
+                edgeData[row - x1][col - y1] = sqrt(this->pow(Gx) + this->pow(Gy));
+            }
+        }
+
+        // 5) Clean the Edges
+        if (cleanUp)
+        {
+            // a) First make the the edge into salt & pepper
+            for (int r = 0; r <= (x2 - x1); r++)
+            {
+                for (int w = 0; w <= (y2 - y1); w++)
+                {
+                    if ((int)edgeData[r][w] >= 100)
+                    {
+                        edgeData[r][w] = 255;
+                    }
+                    else
+                    {
+                        edgeData[r][w] = 0;
+                    }
+                }
+            }
+        }
+
+        // 6) Check if the patch has any edge in it
+        for (int r = 0; r <= (x2 - x1); r++)
+        {
+            for (int w = 0; w <= (y2 - y1); w++)
+            {
+                if ((int)edgeData[r][w] >= 100)
+                {
+                    // 6.1) Copy the edgeData into the Real Image
+                    for (int r = 0; r <= (x2 - x1); r++)
+                    {
+                        for (int c = 0; c <= (y2 - y1); c++)
+                        {
+
+                            this->img[0][x1 + r][y1 + c] =
+                                this->img[1][x1 + r][y1 + c] =
+                                    this->img[2][x1 + r][y1 + c] = edgeData[r][c];
+                        }
+                    }
+
+                    // 6.2) Deallocate the edgeData from Heap
+                    for (int r = 0; r <= (x2 - x1); r++)
+                    {
+                        delete[] edgeData[r];
+                    }
+                    delete[] edgeData;
+                    edgeData = nullptr;
+
+                    // 6.3) As we have found an edge and copied the data we can leave
+                    return true;
+                }
+            }
+        }
+
+        // 7) Deallocate the edgeData from Heap
+        for (int r = 0; r <= (x2 - x1); r++)
+        {
+            delete[] edgeData[r];
+        }
+        delete[] edgeData;
+        edgeData = nullptr;
+    }
+    else
+    {
+        cerr << "\n Something went wrong in {applySobelEdgeDetectionOnPatch}...";
+    }
+    return false;
+}
+
+void BmpHandler::sobelTemplateMatch(int rowNo, int patchSize, int rowOffset, BmpHandler &bmpB)
 {
     // CHECK EDGE POINTS
-    if (this->edgePoints.size() <= 0)
+    if (this->leftEdgePoints.size() <= 0)
     {
-        cerr << "\nThere were no edge points in {this->edgePoints}...";
+        cerr << "\nThere were no edge points in {this->leftEdgePoints}...";
         return;
     }
 
@@ -370,12 +628,91 @@ void BmpHandler::grayScaleTemplateMatch(int rowNo, int patchSize, int rowOffset,
         return;
     }
 
-    // cout << this->edgePoints[0].first << " " << this->edgePoints[0].second << endl;
+    int curr_ssd = 0;
+    int best_ssd = INT32_MAX;
+    pair<int, int> best_coord;
+    for (int edgeNo = 0; edgeNo < this->leftEdgePoints.size(); edgeNo++)
+    {
+        best_ssd = INT32_MAX;
+        for (int col = (patchSize - 1); col < (bmpB.getImgWidth() - (patchSize - 1)); col++)
+        {
+            curr_ssd = 0;
+            for (int r = 0; r < patchSize; r++)
+            {
+                for (int w = 0; w < patchSize; w++)
+                {
+                    curr_ssd += this->pow(this->abs(this->grayscale_img[0]
+                                                                       [(this->leftEdgePoints[edgeNo].first - (patchSize - 1) / 2) + r]
+                                                                       [(this->leftEdgePoints[edgeNo].second - (patchSize - 1) / 2) + w] -
+                                                    bmpB.grayscale_img[0]
+                                                                      [(this->leftEdgePoints[edgeNo].first + rowOffset - (patchSize - 1) / 2) + r]
+                                                                      [(col - (patchSize - 1) / 2) + w]));
+                }
+            }
+            // Compare curr_ssd with best_ssd
+            if (curr_ssd < best_ssd)
+            {
+                best_ssd = curr_ssd;
+                best_coord.first = this->leftEdgePoints[edgeNo].first + rowOffset;
+                best_coord.second = col;
+            }
+        }
+
+        // Apply Edge Detection on the Patch
+        if (bmpB.applySobelEdgeDetectionOnPatch(best_coord.first - (patchSize) / 2, best_coord.second - (patchSize) / 2,
+                                                best_coord.first + (patchSize) / 2, best_coord.second + (patchSize) / 2, false))
+        {
+            // We will push the edges in this container
+            bmpB.createBorder(best_coord.first - (patchSize) / 2, best_coord.second - (patchSize) / 2,
+                              best_coord.first + (patchSize) / 2, best_coord.second + (patchSize) / 2, 1);
+        }
+
+        // DROP THE USELESS EDGE POINTS
+        // if ((this->abs(best_coord.second - leftEdgePoints[edgeNo].second) < this->getImgWidth() / 2) &&
+        //     (best_coord.second > leftEdgePoints[edgeNo].second))
+        // {
+        //     this->rightEdgePoints.push_back(best_coord);
+        // }
+        // else
+        // {
+        //     this->leftEdgePoints.erase(this->leftEdgePoints.begin() + edgeNo);
+        //     edgeNo--;
+        // }
+    }
+
+    // Now we check for vertical edges in the rightEdges vector'
+}
+
+void BmpHandler::grayScaleTemplateMatch(int rowNo, int patchSize, int rowOffset, BmpHandler &bmpB)
+{
+    // CHECK EDGE POINTS
+    if (this->leftEdgePoints.size() <= 0)
+    {
+        cerr << "\nThere were no edge points in {this->leftEdgePoints}...";
+        return;
+    }
+
+    // CHECK PATCH SIZE
+    if ((patchSize % 2 == 0) || patchSize < 3)
+    {
+        cerr << "Invalid Patch Size. Please make patch > 3 and odd";
+        return;
+    }
+
+    // CHECK IF IMAGES ARE GRAYSCALE
+    if ((!this->isGrayScale) ||
+        (!bmpB.isGrayScale))
+    {
+        cerr << "\nOne of the images don't seem to be in grayscale...";
+        return;
+    }
+
+    // cout << this->leftEdgePoints[0].first << " " << this->leftEdgePoints[0].second << endl;
 
     int curr_ssd = 0;
     int best_ssd = INT32_MAX;
     pair<int, int> best_coord;
-    for (int edgeNo = 0; edgeNo < this->edgePoints.size(); edgeNo++) // Only 1 edge Point will be match for now
+    for (int edgeNo = 0; edgeNo < this->leftEdgePoints.size(); edgeNo++)
     {
         best_ssd = INT32_MAX;
         for (int col = (patchSize - 1); col < (bmpB.getImgWidth() - (patchSize - 1)); col++)
@@ -386,10 +723,10 @@ void BmpHandler::grayScaleTemplateMatch(int rowNo, int patchSize, int rowOffset,
                 for (int w = 0; w < patchSize; w++)
                 {
                     curr_ssd += this->pow(this->abs(this->img[0]
-                                                             [(this->edgePoints[edgeNo].first - (patchSize - 1) / 2) + r]
-                                                             [(this->edgePoints[edgeNo].second - (patchSize - 1) / 2) + w] -
+                                                             [(this->leftEdgePoints[edgeNo].first - (patchSize - 1) / 2) + r]
+                                                             [(this->leftEdgePoints[edgeNo].second - (patchSize - 1) / 2) + w] -
                                                     bmpB.img[0]
-                                                            [(this->edgePoints[edgeNo].first + rowOffset - (patchSize - 1) / 2) + r]
+                                                            [(this->leftEdgePoints[edgeNo].first + rowOffset - (patchSize - 1) / 2) + r]
                                                             [(col - (patchSize - 1) / 2) + w]));
                 }
             }
@@ -397,77 +734,54 @@ void BmpHandler::grayScaleTemplateMatch(int rowNo, int patchSize, int rowOffset,
             if (curr_ssd < best_ssd)
             {
                 best_ssd = curr_ssd;
-                best_coord.first = this->edgePoints[edgeNo].first + rowOffset;
+                best_coord.first = this->leftEdgePoints[edgeNo].first + rowOffset;
                 best_coord.second = col;
             }
         }
-        if ((this->abs(best_coord.second - edgePoints[edgeNo].second) < this->getImgWidth() / 2) &&
-            (best_coord.second > edgePoints[edgeNo].second))
+
+        // DROP THE USELESS EDGE POINTS
+        if ((this->abs(best_coord.second - leftEdgePoints[edgeNo].second) < this->getImgWidth() / 2) &&
+            (best_coord.second > leftEdgePoints[edgeNo].second))
         {
-            bmpB.createBorder(best_coord.first - (patchSize - 1) / 2, best_coord.second - (patchSize - 1) / 2,
-                              best_coord.first + (patchSize - 1) / 2, best_coord.second + (patchSize - 1) / 2);
-            cout << "\n Left = "
-                 << edgePoints[edgeNo].first << "," << edgePoints[edgeNo].second
-                 << ", Right = "
-                 << best_coord.first << "," << best_coord.second
-                 << " , Error = " << best_ssd;
+            this->rightEdgePoints.push_back(best_coord);
+        }
+        else
+        {
+            this->leftEdgePoints.erase(this->leftEdgePoints.begin() + edgeNo);
+            edgeNo--;
         }
     }
-}
-
-void BmpHandler::sobelTemplateMatch(int rowNo, int patchSize, BmpHandler &bmpB)
-{
-    if ((patchSize % 2 == 0) || patchSize < 3)
+    cout << leftEdgePoints.size() << " " << rightEdgePoints.size() << endl;
+    for (int i = 1; i < leftEdgePoints.size(); i++)
     {
-        cerr << "Invalid Patch Size. Please make patch > 3 and odd";
+        if (this->abs(this->abs(leftEdgePoints[i].second - leftEdgePoints[i - 1].second) -
+                      this->abs(rightEdgePoints[i].second - rightEdgePoints[i - 1].second)) > 100)
+        {
+            rightEdgePoints.erase(rightEdgePoints.begin() + i);
+            leftEdgePoints.erase(leftEdgePoints.begin() + i);
+            i--;
+        }
+    }
+    // cout << '\n';
+
+    if (leftEdgePoints.size() != rightEdgePoints.size())
+    {
+        cerr << "\n The amount of left edges are not same as right edges...";
         return;
     }
 
-    pair<int, int> edge = this->edgePoints[0];
-    cout << this->edgePoints[0].first << " " << this->edgePoints[0].second << endl;
-    unsigned char ***imageB = bmpB.getImg();
-    unsigned char ***patch;
-    allocatePatch(patch, patchSize); // allocation on Heap
-    println("Patch Allocated");
-
-    // populate patch
-    for (int i = 0; i < 3; i++)
-        for (int r = 0; r < patchSize; r++)
-            for (int w = 0; w < patchSize; w++)
-                patch[i][r][w] = this->original_img[i][edge.first + (r - ((patchSize - 1) / 2))][edge.second + (w - ((patchSize - 1) / 2))];
-
-    int ssd = 0;
-    int min_ssd = INT32_MAX;
-    pair<int, int> match_coord;
-    for (int w = 10; w < bmpB.getImgWidth() - 10; w++)
+    for (int edgeNo = 0; edgeNo < leftEdgePoints.size(); edgeNo++)
     {
-        ssd = 0;
-        for (int r = 0; r < patchSize; r++)
-        {
-            for (int c = 0; c < patchSize; c++)
-            {
-                for (int k = 0; k < 3; k++)
-                {
-                    ssd += this->pow(this->abs((int)patch[k][r][c] -
-                                               (int)bmpB.original_img[k][rowNo + (r - ((patchSize - 1) / 2))][w - ((patchSize - 1) / 2)]));
-                }
-            }
-        }
-        // std::cout << "SSD : " << ssd << std::endl;
-        if (ssd < min_ssd)
-        {
-            min_ssd = ssd;
-            match_coord.first = rowNo;
-            match_coord.second = w;
-            cout << rowNo << " " << w << " = " << ssd << endl;
-        }
+        cout << "\n Left = ("
+             << leftEdgePoints[edgeNo].first << "," << leftEdgePoints[edgeNo].second
+             << "), Right = ("
+             << rightEdgePoints[edgeNo].first << "," << rightEdgePoints[edgeNo].second
+             << "), Border = ";
+        bmpB.createBorder(rightEdgePoints[edgeNo].first - (patchSize - 1) / 2, rightEdgePoints[edgeNo].second - (patchSize - 1) / 2,
+                          rightEdgePoints[edgeNo].first + (patchSize - 1) / 2, rightEdgePoints[edgeNo].second + (patchSize - 1) / 2, 1);
+        this->createBorder(leftEdgePoints[edgeNo].first - (patchSize - 1) / 2, leftEdgePoints[edgeNo].second - (patchSize - 1) / 2,
+                           leftEdgePoints[edgeNo].first + (patchSize - 1) / 2, leftEdgePoints[edgeNo].second + (patchSize - 1) / 2, 1);
     }
-    cout << match_coord.first << " " << match_coord.second << endl;
-    // threshold for a match -> 150000
-    std::cout << "Minimum Distance : " << min_ssd << std::endl;
-    bmpB.createBorder(match_coord.first - (patchSize - 1) / 2, match_coord.second - (patchSize - 1) / 2,
-                      match_coord.first + (patchSize - 1) / 2, match_coord.second + (patchSize - 1) / 2);
-    deAllocatePatch(patch, patchSize); // deallocation on Heap
 }
 
 void BmpHandler::findMinMaxContrast(int blue, int red, int green)
@@ -548,6 +862,7 @@ void BmpHandler::convertTo3d(uint8_t *buf)
     int width = this->img_dim.second;
     allocateBuffer(this->img);
     allocateBuffer(this->original_img);
+    allocateBuffer(this->grayscale_img);
 
     for (int r = 0; r < height; r++)
     {
