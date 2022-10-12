@@ -142,6 +142,7 @@ public:
         @return A vector of pair with edge points of the bitmap image
     */
     vector<pair<int, int>> getLeftEdgePoint() const;
+    vector<pair<int, int>> getRightEdgePoint() const;
     /*
        This is the accessor for {this->img_dim.second}
        @return The Width of the BmpImage
@@ -190,13 +191,13 @@ public:
     */
     void sobelTemplateMatch(int, int, int, BmpHandler &img);
 
-    bool applySobelEdgeDetectionOnPatch(int, int, int, int, bool = true, bool = true, bool = true);
-
-    void grayScaleTemplateMatch(int, int, int, BmpHandler &);
+    bool applySobelEdgeDetectionOnPatch(int, int, int, int, int, bool = true, bool = true, bool = true);
 
     void cleanUp();
 
     void eraseRightEdgePoints();
+
+    bool isInRange(int, vector<pair<int, int>> &, int range = 0);
 
     void troubleShoot();
 };

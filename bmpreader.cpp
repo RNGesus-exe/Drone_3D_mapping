@@ -67,6 +67,11 @@ int BmpHandler::abs(int val)
     return (val >= 0) ? val : (-1 * val);
 }
 
+vector<pair<int, int>> BmpHandler::getRightEdgePoint() const
+{
+    return this->rightEdgePoints;
+}
+
 vector<pair<int, int>> BmpHandler::getLeftEdgePoint() const
 {
     return this->leftEdgePoints;
@@ -470,8 +475,9 @@ void BmpHandler::applySobelEdgeDetection(int rowNo, bool horizontalFlag, bool ve
     }
 }
 
-bool BmpHandler::applySobelEdgeDetectionOnPatch(int x1, int y1, int x2, int y2, bool horizontalFlag, bool verticalFlag, bool cleanUp)
+bool BmpHandler::applySobelEdgeDetectionOnPatch(int patchSize, int x1, int y1, int x2, int y2, bool horizontalFlag, bool verticalFlag, bool cleanUp)
 {
+    bool hasEdge = false;
     // 1) Apply constraint checks
     if ((this->isGrayScale) &&
         (x1 <= x2) &&
@@ -556,40 +562,38 @@ bool BmpHandler::applySobelEdgeDetectionOnPatch(int x1, int y1, int x2, int y2, 
             }
         }
 
-        // 6) Check if the patch has any edge in it
+        // 6) Check if the patch has atleast patchSize amount of edges in it
+        int amountOfEdges = 0;
         for (int r = 0; r <= (x2 - x1); r++)
         {
             for (int w = 0; w <= (y2 - y1); w++)
             {
                 if ((int)edgeData[r][w] >= 100)
                 {
-                    // 6.1) Copy the edgeData into the Real Image
-                    for (int r = 0; r <= (x2 - x1); r++)
-                    {
-                        for (int c = 0; c <= (y2 - y1); c++)
-                        {
-
-                            this->img[0][x1 + r][y1 + c] =
-                                this->img[1][x1 + r][y1 + c] =
-                                    this->img[2][x1 + r][y1 + c] = edgeData[r][c];
-                        }
-                    }
-
-                    // 6.2) Deallocate the edgeData from Heap
-                    for (int r = 0; r <= (x2 - x1); r++)
-                    {
-                        delete[] edgeData[r];
-                    }
-                    delete[] edgeData;
-                    edgeData = nullptr;
-
-                    // 6.3) As we have found an edge and copied the data we can leave
-                    return true;
+                    amountOfEdges++;
                 }
             }
         }
 
-        // 7) Deallocate the edgeData from Heap
+        if (amountOfEdges >= patchSize)
+        {
+            // 7.1) Copy the edgeData into the Real Image
+            for (int r = 0; r <= (x2 - x1); r++)
+            {
+                for (int c = 0; c <= (y2 - y1); c++)
+                {
+
+                    this->img[0][x1 + r][y1 + c] =
+                        this->img[1][x1 + r][y1 + c] =
+                            this->img[2][x1 + r][y1 + c] = edgeData[r][c];
+                }
+            }
+
+            // 7.2) As we have found an edge and copied the data we can leave
+            hasEdge = true;
+        }
+
+        // 8) Deallocate the edgeData from Heap
         for (int r = 0; r <= (x2 - x1); r++)
         {
             delete[] edgeData[r];
@@ -601,7 +605,7 @@ bool BmpHandler::applySobelEdgeDetectionOnPatch(int x1, int y1, int x2, int y2, 
     {
         cerr << "\n Something went wrong in {applySobelEdgeDetectionOnPatch}...";
     }
-    return false;
+    return hasEdge;
 }
 
 void BmpHandler::sobelTemplateMatch(int rowNo, int patchSize, int rowOffset, BmpHandler &bmpB)
@@ -658,91 +662,14 @@ void BmpHandler::sobelTemplateMatch(int rowNo, int patchSize, int rowOffset, Bmp
             }
         }
 
-        // Apply Edge Detection on the Patch
-        if (bmpB.applySobelEdgeDetectionOnPatch(best_coord.first - (patchSize) / 2, best_coord.second - (patchSize) / 2,
-                                                best_coord.first + (patchSize) / 2, best_coord.second + (patchSize) / 2, false))
+        // DROP THE USELESS EDGE POINTS
+        if ((this->abs(best_coord.second - leftEdgePoints[edgeNo].second) < this->getImgWidth() / 2) && // Check Distance between points
+            ((!this->rightEdgePoints.size()) || (this->isInRange(best_coord.second, this->rightEdgePoints, patchSize))) &&
+            (bmpB.applySobelEdgeDetectionOnPatch(patchSize, best_coord.first - (patchSize) / 2, // Check Edges
+                                                 best_coord.second - (patchSize) / 2, best_coord.first + (patchSize) / 2, best_coord.second + (patchSize) / 2, false)))
         {
-            // We will push the edges in this container
             bmpB.createBorder(best_coord.first - (patchSize) / 2, best_coord.second - (patchSize) / 2,
                               best_coord.first + (patchSize) / 2, best_coord.second + (patchSize) / 2, 1);
-        }
-
-        // DROP THE USELESS EDGE POINTS
-        // if ((this->abs(best_coord.second - leftEdgePoints[edgeNo].second) < this->getImgWidth() / 2) &&
-        //     (best_coord.second > leftEdgePoints[edgeNo].second))
-        // {
-        //     this->rightEdgePoints.push_back(best_coord);
-        // }
-        // else
-        // {
-        //     this->leftEdgePoints.erase(this->leftEdgePoints.begin() + edgeNo);
-        //     edgeNo--;
-        // }
-    }
-
-    // Now we check for vertical edges in the rightEdges vector'
-}
-
-void BmpHandler::grayScaleTemplateMatch(int rowNo, int patchSize, int rowOffset, BmpHandler &bmpB)
-{
-    // CHECK EDGE POINTS
-    if (this->leftEdgePoints.size() <= 0)
-    {
-        cerr << "\nThere were no edge points in {this->leftEdgePoints}...";
-        return;
-    }
-
-    // CHECK PATCH SIZE
-    if ((patchSize % 2 == 0) || patchSize < 3)
-    {
-        cerr << "Invalid Patch Size. Please make patch > 3 and odd";
-        return;
-    }
-
-    // CHECK IF IMAGES ARE GRAYSCALE
-    if ((!this->isGrayScale) ||
-        (!bmpB.isGrayScale))
-    {
-        cerr << "\nOne of the images don't seem to be in grayscale...";
-        return;
-    }
-
-    // cout << this->leftEdgePoints[0].first << " " << this->leftEdgePoints[0].second << endl;
-
-    int curr_ssd = 0;
-    int best_ssd = INT32_MAX;
-    pair<int, int> best_coord;
-    for (int edgeNo = 0; edgeNo < this->leftEdgePoints.size(); edgeNo++)
-    {
-        best_ssd = INT32_MAX;
-        for (int col = (patchSize - 1); col < (bmpB.getImgWidth() - (patchSize - 1)); col++)
-        {
-            curr_ssd = 0;
-            for (int r = 0; r < patchSize; r++)
-            {
-                for (int w = 0; w < patchSize; w++)
-                {
-                    curr_ssd += this->pow(this->abs(this->img[0]
-                                                             [(this->leftEdgePoints[edgeNo].first - (patchSize - 1) / 2) + r]
-                                                             [(this->leftEdgePoints[edgeNo].second - (patchSize - 1) / 2) + w] -
-                                                    bmpB.img[0]
-                                                            [(this->leftEdgePoints[edgeNo].first + rowOffset - (patchSize - 1) / 2) + r]
-                                                            [(col - (patchSize - 1) / 2) + w]));
-                }
-            }
-            // Compare curr_ssd with best_ssd
-            if (curr_ssd < best_ssd)
-            {
-                best_ssd = curr_ssd;
-                best_coord.first = this->leftEdgePoints[edgeNo].first + rowOffset;
-                best_coord.second = col;
-            }
-        }
-
-        // DROP THE USELESS EDGE POINTS
-        if ((this->abs(best_coord.second - leftEdgePoints[edgeNo].second) < this->getImgWidth() / 2) &&
-            (best_coord.second > leftEdgePoints[edgeNo].second))
-        {
             this->rightEdgePoints.push_back(best_coord);
         }
         else
@@ -751,37 +678,18 @@ void BmpHandler::grayScaleTemplateMatch(int rowNo, int patchSize, int rowOffset,
             edgeNo--;
         }
     }
-    cout << leftEdgePoints.size() << " " << rightEdgePoints.size() << endl;
-    for (int i = 1; i < leftEdgePoints.size(); i++)
+}
+
+bool BmpHandler::isInRange(int val, vector<pair<int, int>> &vec, int range)
+{
+    for (auto v : vec)
     {
-        if (this->abs(this->abs(leftEdgePoints[i].second - leftEdgePoints[i - 1].second) -
-                      this->abs(rightEdgePoints[i].second - rightEdgePoints[i - 1].second)) > 100)
+        if (val > (v.second - range) && val < (v.second + range))
         {
-            rightEdgePoints.erase(rightEdgePoints.begin() + i);
-            leftEdgePoints.erase(leftEdgePoints.begin() + i);
-            i--;
+            return false;
         }
     }
-    // cout << '\n';
-
-    if (leftEdgePoints.size() != rightEdgePoints.size())
-    {
-        cerr << "\n The amount of left edges are not same as right edges...";
-        return;
-    }
-
-    for (int edgeNo = 0; edgeNo < leftEdgePoints.size(); edgeNo++)
-    {
-        cout << "\n Left = ("
-             << leftEdgePoints[edgeNo].first << "," << leftEdgePoints[edgeNo].second
-             << "), Right = ("
-             << rightEdgePoints[edgeNo].first << "," << rightEdgePoints[edgeNo].second
-             << "), Border = ";
-        bmpB.createBorder(rightEdgePoints[edgeNo].first - (patchSize - 1) / 2, rightEdgePoints[edgeNo].second - (patchSize - 1) / 2,
-                          rightEdgePoints[edgeNo].first + (patchSize - 1) / 2, rightEdgePoints[edgeNo].second + (patchSize - 1) / 2, 1);
-        this->createBorder(leftEdgePoints[edgeNo].first - (patchSize - 1) / 2, leftEdgePoints[edgeNo].second - (patchSize - 1) / 2,
-                           leftEdgePoints[edgeNo].first + (patchSize - 1) / 2, leftEdgePoints[edgeNo].second + (patchSize - 1) / 2, 1);
-    }
+    return true;
 }
 
 void BmpHandler::findMinMaxContrast(int blue, int red, int green)
