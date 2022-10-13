@@ -25,6 +25,8 @@
 #define HEADER_LEN 54    // The size of the header is fixed for the bmp files
 #define COLOR_CHANNELS 3 // BGR
 
+/*Below are some macros defined for debugging purposes*/
+
 #define println(x) std::cout << x << std::endl
 
 using namespace std;
@@ -34,45 +36,41 @@ class BmpHandler
     pair<uint16_t, uint16_t> img_dim;                                 // This will store the {Height x Width}{first x second} of the bmp image
     unsigned char ***original_img;                                    // This will hold the original bitmap image
     unsigned char ***img;                                             // This will hold the BRG image
-    unsigned char ***grayscale_img;                                   // This will hold the grayscale image
+    unsigned char **grayscale_img;                                    // This will hold the grayscale image
     string path;                                                      // This will store the path of the bmp image
     char header[HEADER_LEN];                                          // This will store the header of the bmp image
     int contrast[COLOR_CHANNELS][2] = {{0, 255}, {0, 255}, {0, 255}}; // Holds lowest and highest value of 3 channels
     bool isGrayScale;                                                 // A flag which indicates if the image is in grayscale or not
-    vector<pair<int, int>> leftEdgePoints;                            // This will hold the coordinates{x,y} of the edges detected in the left bitmap image
-    vector<pair<int, int>> rightEdgePoints;                           // This will hold the coordinates{x,y} of the edges detected in the right bitmap image
+    vector<vector<pair<int, int>>> leftEdgePoints;                    // This will hold the coordinates{x,y} of the edges detected in the left bitmap image
+    vector<vector<pair<int, int>>> rightEdgePoints;                   // This will hold the coordinates{x,y} of the edges detected in the right bitmap image
 
     /*
-        Allocates memory for {this->img} data member
-        Precondition: Make sure you have set the path for the bmp image
-        Postcondition: This will load the bmp image from the given path {this->path}
+        Allocates memory for a 3D array
         @param: buffer Reference of the 3D buffer which has to be allocated
     */
-    void allocateBuffer(unsigned char ***&);
+    void allocate3DBuffer(unsigned char ***&);
     /*
-        The bmp image is read and loaded into {this->img}.
+        Allocates memory for a 2D array
+        @param: buffer Reference of the 2D buffer which has to be allocated
+    */
+    void allocate2DBuffer(unsigned char **&);
+    /*
+            Transfers 1D data into 3D [CHANNEL][ROW][COL]
+            @param buf 1D pixel array
+        */
+    void convertTo3d(uint8_t *&);
+    /*
+        The bmp image is read and loaded into {this->img ^ this->original_img}.
         For some reason reading directly into the 3d array doesn't work properly on windows
-        so it reads into intermediate 1-d Array and then converts to 3-d.
-        Also populates the image dimensions
+        so it reads into intermediate 1D Array and then converts to 3D.
+        Also populates the image dimensions into {this->img_dim}
     */
     int readImage();
-    /*
-        Allocate memory for template matching patch.
-        @param buf Pointer to the 3d array
-        @param patchSize Size of the array
+    /*  This is a function to get square of a value
+        @param value Enter the value to get square of
+        @return square Returns the square of the value
     */
-    void allocatePatch(unsigned char ***&patch, int patchSize);
-    /*
-       De-Allocate memory for template matching patch.
-       @param buf Pointer to the 3d array
-       @param patchSize Size of the array
-   */
-    void deAllocatePatch(unsigned char ***&patch, int patchSize);
-    /*
-        This will find and update minimum and maximum value from the BRG layers of the bmp image
-        @param The Blue, Red and Green pixel value
-    */
-    void findMinMaxContrast(int, int, int);
+    int pow(int);
     /*
         There is an issue with the linux g++ compiler when using the abs() function
         so, I made my own abs function to fix that problem
@@ -80,6 +78,57 @@ class BmpHandler
         @return The absolute of the integer
     */
     int abs(int);
+
+public:
+    /*
+        This is the parameterized constructor
+        @param The path for the bmp image without the ".bmp" extension
+        if(path is passed)
+            The image will be loaded into {this->img}
+    */
+    BmpHandler(string = "");
+    /*
+        This is the destructor
+    */
+    ~BmpHandler();
+    /*
+            This is the accessor for {this->img_dim.first}
+            @return The Height of the BmpImage
+    */
+    int getImgHeight() const;
+    /*
+       This is the accessor for {this->img_dim.second}
+       @return The Width of the BmpImage
+    */
+    int getImgWidth() const;
+    /*
+        The {this->grayscale_img} will be loaded with a grayscale image from {this->original_img}
+        Formula: (B + G + R) / 3
+        There is another formula available in the member function definition
+        @param modify Should the grayscale be stored for future use
+    */
+    void applyGrayscale(bool);
+    /*
+        This will return the 2D vector holding the edge points of the bitmap LEFT IMAGE
+        @return A 2D vector of pair with edge points of the bitmap LEFT IMAGE
+    */
+    vector<vector<pair<int, int>>> getLeftEdgePoint() const;
+    /*
+      This will return the vector holding the edge points of the bitmap RIGHT IMAGE
+      @return A 2D vector of pair with edge points of the bitmap RIGHT IMAGE
+    */
+    vector<vector<pair<int, int>>> getRightEdgePoint() const;
+    /*
+        The sobel vertical and horizontal operator will be applied on {this->img}
+            The points are then stored/appended in {this->edgePoints}
+        @param rowNo Which row to apply edgeDetection on
+        @param patchSize How many columns to skip from start & end
+        @param EdgeLinesNo Input the current EdgeLine
+        @param horizontalFlag true = Apply the horizontalFilter, false = vice versa
+        @param verticalFlag true = Apply the verticalFilter, false = vice versa
+        @param cleanFlag true = Clean the edges, false = Don't clean the edges
+    */
+    void applySobelEdgeDetection(int, int, int, bool = true, bool = true, bool = true);
     /*
         This functions will make a - colored box around the given patch
         @param x1 starting x coordinate
@@ -90,116 +139,34 @@ class BmpHandler
     */
     void createBorder(int, int, int, int, int);
     /*
-        Converts 1-dimensional pixel data into 3-dimensional [RGB][ROW][COL]
-        @param buf 1-d pixel array
+        This function will write the bmp image to the given {this->path + "_w.bmp"}
+        @param flag set true for original image, set false for modified image
     */
-    void convertTo3d(uint8_t *buf);
-
-    /*  This is a function to get square of a value
-        @param value Enter the value to get square of
-        @return square Returns the square of the value
-    */
-    int pow(int);
-
-public:
-    /*
-        This is the parameterized constructor
-        @param The path for the bmp image without the ".bmp" extension
-        if(path is passed)
-            The image will be loaded into {this->img}
-    */
-
-    BmpHandler(string = "");
-    /*
-        This is the destructor
-    */
-    ~BmpHandler();
+    void writeBMPImage(bool = false);
     /*
         This is the mutator for {this->path}
         @param path: The path of the bmp image
     */
     void setPath(string);
     /*
-        This is the accessor for {this->path}
-        @return The path of the BmpImage
+        This is a garbage collector
     */
-
-    string getPath() const;
-
-    /* Returns the pointer to pixel data */
-
-    unsigned char ***getImg()
-    {
-        return this->img;
-    }
-    /*
-            This is the accessor for {this->img_dim.first}
-            @return The Height of the BmpImage
-    */
-    int getImgHeight() const;
-    /*
-        This will return the vector holding the edge points of the bitmap image in {this->img}
-        @return A vector of pair with edge points of the bitmap image
-    */
-    vector<pair<int, int>> getLeftEdgePoint() const;
-    vector<pair<int, int>> getRightEdgePoint() const;
-    /*
-       This is the accessor for {this->img_dim.second}
-       @return The Width of the BmpImage
-    */
-    int getImgWidth() const;
-
-    /*
-        This function will write the bmp image to the given {this->path + "_w.bmp"}
-        @param flag set true for original image, set false for modified image
-    */
-    void writeBMPImage(bool = false);
-    /*
-        This function will apply auto contrast on the original image
-        Formula: Pixel = (Pixel - MinPixelValue) * (255/ (highest - lowest pixel))
-    */
-    void applyAutoContrast();
-    /*
-        The {this->img} will be converted into grayscale
-        Formula: (B + G + R) / 3
-        There is another formula available in the member function definition
-    */
-    void applyGrayscale();
-    /*
-        A basic edge detection algo will be used on a single row of the image
-        The function will also flip the {this->isGrayScale} flag to (true)
-        @param row: The row on which edge detection should be applied
-        @param displayEdges: If set true, the edges will be visible when using {this->writeBMPImage}
-        @param padding: How many columns to skip from left and right
-        @param skip_amount: If edge is found, how many pixels to skip after it. DON'T USE LESS THEN 1
-    */
-    void singleRowEdgeDetection(int, bool = false, int = 1, int = 3);
-    /*
-        The sobel vertical and horizontal operator will be applied on {this->img}
-            The points are then stored/appended in {this->edgePoints}
-        @param rowNo Which row to apply edgeDetection on
-        @param horizontalFlag true = Apply the horizontalFilter, false = vice versa
-        @param verticalFlag true = Apply the verticalFilter, false = vice versa
-        @param cleanFlag true = Clean the edges, false = Don't clean the edges
-    */
-    void applySobelEdgeDetection(int, bool = true, bool = true, bool = true, int = 3);
-    /*
-        Match Sobel Edges
-        @param rowNo Which row to start matching on the other image
-        @param patchSize Size of the patch (Should be an odd number > 3)
-        @param img Object for the image you want to match on
-    */
-    void sobelTemplateMatch(int, int, int, BmpHandler &img);
-
-    bool applySobelEdgeDetectionOnPatch(int, int, int, int, int, bool = true, bool = true, bool = true);
-
     void cleanUp();
-
-    void eraseRightEdgePoints();
+    /*
+       Match Sobel Edges from {this->leftEdges}
+       @param rowNo Which row to start matching on the other image
+       @param patchSize Size of the patch (Should be an odd number > 3)
+       @param rowOffset How many rows to go up(negative) or down(positive)
+       @param EdgeLinesNo Input the current EdgeLine
+       @param img Object for the image you want to match on
+   */
+    void sobelTemplateMatch(int, int, int, int, BmpHandler &img);
 
     bool isInRange(int, vector<pair<int, int>> &, int range = 0);
 
-    void troubleShoot();
+    bool applySobelEdgeDetectionOnPatch(int, int, int, int, int, bool = true, bool = true, bool = true);
+
+    void eraseRightEdgePoints();
 };
 
 #endif
