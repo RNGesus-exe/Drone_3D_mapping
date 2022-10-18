@@ -55,9 +55,9 @@ class BmpHandler
     */
     void allocate2DBuffer(unsigned char **&);
     /*
-            Transfers 1D data into 3D [CHANNEL][ROW][COL]
-            @param buf 1D pixel array
-        */
+        Transfers 1D data into 3D [CHANNEL][ROW][COL]
+        @param buf 1D pixel array
+    */
     void convertTo3d(uint8_t *&);
     /*
         The bmp image is read and loaded into {this->img ^ this->original_img}.
@@ -78,6 +78,27 @@ class BmpHandler
         @return The absolute of the integer
     */
     int abs(int);
+    /*
+        This is a helper function for {this->sobelTemplateMatch} to check if a value(x) is in range(w,z)
+            so, {w <= x <= z}
+        @param val The value to check if it is in range
+        @param vec vector of pairs to check for range
+        @param patchSize The size of the patch to check if it is in range
+        @return true:not in range, false:in range
+    */
+    bool isInRange(int, vector<pair<int, int>> &, int range = 0);
+    /*
+        This function will
+        @param patchSize The size of the patch to check for sobel edge detection
+        @param x1 The starting x coordinate
+        @param y1 The starting y coordinate
+        @param x2 The ending x coordinate
+        @param y2 The ending y coordinate
+        @param horizontalFlag The flag for checking if we need to apply horizontal Sobel Operator or not
+        @param verticalFlag The flag for checking if we need to apply vertical sobel operator or not
+        @param cleanUp To make the image more smoother
+    */
+    bool applySobelEdgeDetectionOnPatch(int, int, int, int, int, bool = true, bool = true, bool = true);
 
 public:
     /*
@@ -161,12 +182,28 @@ public:
        @param img Object for the image you want to match on
    */
     void sobelTemplateMatch(int, int, int, int, BmpHandler &img);
-
-    bool isInRange(int, vector<pair<int, int>> &, int range = 0);
-
-    bool applySobelEdgeDetectionOnPatch(int, int, int, int, int, bool = true, bool = true, bool = true);
-
+    /*
+        This function will just erase the data stored in {this->rightEdgePoints}
+    */
     void eraseRightEdgePoints();
+    /*
+        This function will apply auto contrast on {this->img}
+        Formula: Pixel = (Pixel - MinPixelValue) * (255/ (highest - lowest pixel))
+        @param modify should the auto contrast be applied on true:{this->grayscale_img} || false:{this->img}
+    */
+    void applyAutoContrast(bool);
+    /*
+        This will clean {this->img} and then display all the edges from {this->leftEdgePoints}
+        @param patchSize The size of the borders to be displayed
+        @param grayscale should the image be in grayscale
+        @param autoContrast should autoContrast be applied on the image
+    */
+    void writeBMPEdges(int, bool, bool);
+    /*
+     */
+    void refineTemplateEdges(vector<pair<int, int>> &, int);
+    /**/
+    void drawBordersFromVec(vector<pair<int, int>> &, int);
 };
 
 #endif

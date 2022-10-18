@@ -575,12 +575,10 @@ void BmpHandler::sobelTemplateMatch(int rowNo, int patchSize, int rowOffset, int
 
         // DROP THE USELESS EDGE POINTS
         if ((this->abs(best_coord.second - leftEdgePoints[edgeLineNo][edgeNo].second) < this->getImgWidth() / 2) && // Check Distance between points
-            ((!this->rightEdgePoints[edgeLineNo].size()) || (this->isInRange(best_coord.second, this->rightEdgePoints[edgeLineNo], patchSize))) &&
+            ((!vec.size()) || (this->isInRange(best_coord.second, vec, patchSize))) &&
             (bmpB.applySobelEdgeDetectionOnPatch(patchSize, best_coord.first - (patchSize) / 2, // Check Edges
                                                  best_coord.second - (patchSize) / 2, best_coord.first + (patchSize) / 2, best_coord.second + (patchSize) / 2, false)))
         {
-            bmpB.createBorder(best_coord.first - (patchSize) / 2, best_coord.second - (patchSize) / 2,
-                              best_coord.first + (patchSize) / 2, best_coord.second + (patchSize) / 2, 1);
             vec.push_back(best_coord);
         }
         else
@@ -589,20 +587,21 @@ void BmpHandler::sobelTemplateMatch(int rowNo, int patchSize, int rowOffset, int
             edgeNo--;
         }
     }
+    this->refineTemplateEdges(vec, edgeLineNo);
     this->rightEdgePoints.push_back(vec);
+    bmpB.drawBordersFromVec(vec, patchSize);
 }
 
 bool BmpHandler::isInRange(int val, vector<pair<int, int>> &vec, int range)
 {
-    // for (auto v : vec)
-    // {
-    //     cout << v.first << endl;
-    //     if ((val > (v.second - range)) &&
-    //         (val < (v.second + range)))
-    //     {
-    //         return false;
-    //     }
-    // }
+    for (auto v : vec)
+    {
+        if ((val > (v.second - range)) &&
+            (val < (v.second + range)))
+        {
+            return false;
+        }
+    }
     return true;
 }
 
@@ -723,16 +722,16 @@ bool BmpHandler::applySobelEdgeDetectionOnPatch(int patchSize, int x1, int y1, i
         if (amountOfEdges >= patchSize)
         {
             // 7.1) Copy the edgeData into the Real Image
-            for (int r = 0; r <= (x2 - x1); r++)
-            {
-                for (int c = 0; c <= (y2 - y1); c++)
-                {
+            // for (int r = 0; r <= (x2 - x1); r++)
+            // {
+            //     for (int c = 0; c <= (y2 - y1); c++)
+            //     {
 
-                    this->img[0][x1 + r][y1 + c] =
-                        this->img[1][x1 + r][y1 + c] =
-                            this->img[2][x1 + r][y1 + c] = edgeData[r][c];
-                }
-            }
+            //         this->img[0][x1 + r][y1 + c] =
+            //             this->img[1][x1 + r][y1 + c] =
+            //                 this->img[2][x1 + r][y1 + c] = edgeData[r][c];
+            //     }
+            // }
 
             // 7.2) As we have found an edge and copied the data we can leave
             hasEdge = true;
@@ -756,4 +755,138 @@ bool BmpHandler::applySobelEdgeDetectionOnPatch(int patchSize, int x1, int y1, i
 void BmpHandler::eraseRightEdgePoints()
 {
     this->rightEdgePoints.clear();
+}
+
+void BmpHandler::applyAutoContrast(bool modify)
+{
+    if (modify)
+    {
+        if (!isGrayScale)
+        {
+            throw runtime_error("The image needs to be in grayscale, before applying auto contrast!!!");
+        }
+
+        int min_val = INT32_MAX;
+        int max_val = INT32_MIN;
+
+        for (int i = 0; i < this->img_dim.first; i++)
+        {
+            for (int j = 0; j < this->img_dim.second; j++)
+            {
+                if (this->grayscale_img[i][j] > max_val)
+                {
+                    max_val = this->grayscale_img[i][j];
+                }
+                if (this->grayscale_img[i][j] < min_val)
+                {
+                    min_val = this->grayscale_img[i][j];
+                }
+            }
+        }
+
+        for (int i = 0; i < this->img_dim.first; i++)
+        {
+            for (int j = 0; j < this->img_dim.second; j++)
+            {
+                this->grayscale_img[i][j] = (this->grayscale_img[i][j] - min_val) * (255 / this->abs(max_val - min_val));
+            }
+        }
+    }
+    else
+    {
+        int min_val[3] = {INT32_MAX, INT32_MAX, INT32_MAX};
+        int max_val[3] = {INT32_MIN, INT32_MIN, INT32_MIN};
+
+        for (int c = 0; c < COLOR_CHANNELS; c++)
+        {
+            for (int i = 0; i < this->img_dim.first; i++)
+            {
+                for (int j = 0; j < this->img_dim.second; j++)
+                {
+                    if (this->img[c][i][j] > max_val[c])
+                    {
+                        max_val[c] = this->img[c][i][j];
+                    }
+                    if (this->img[c][i][j] < min_val[c])
+                    {
+                        min_val[c] = this->img[c][i][j];
+                    }
+                }
+            }
+        }
+    }
+}
+
+void BmpHandler::refineTemplateEdges(vector<pair<int, int>> &vec, int edgeLineNo)
+{
+    if (vec.size() >= 2)
+    {
+        for (int edge = 1; edge < vec.size(); edge++)
+        {
+            if (vec[edge].second < vec[edge - 1].second)
+            {
+                vec.erase(vec.begin() + edge);
+                this->leftEdgePoints[edgeLineNo].erase(this->leftEdgePoints[edgeLineNo].begin() + edge);
+                edge--;
+            }
+        }
+    }
+}
+
+void BmpHandler::writeBMPEdges(int patchSize, bool grayscale, bool autoContrast)
+{
+    if (!this->leftEdgePoints.size())
+    {
+        throw runtime_error("There are no points in {this->leftEdgePoints}, so nothing to write..");
+    }
+
+    // Cleanup The modified Image
+    for (int i = 0; i < this->img_dim.first; i++)
+    {
+        for (int j = 0; j < this->img_dim.second; j++)
+        {
+            this->img[0][i][j] = this->original_img[0][i][j];
+            this->img[1][i][j] = this->original_img[1][i][j];
+            this->img[2][i][j] = this->original_img[2][i][j];
+        }
+    }
+
+    if (grayscale)
+    {
+        for (unsigned int row = 0; row < this->img_dim.first; ++row)
+        {
+            for (unsigned int col = 0; col < this->img_dim.second; ++col)
+            {
+                this->img[0][row][col] =
+                    this->img[1][row][col] =
+                        this->img[2][row][col] =
+                            (this->img[0][row][col] + this->img[1][row][col] + this->img[2][row][col]) / 3;
+            }
+        }
+    }
+
+    if (autoContrast)
+    {
+        this->applyAutoContrast(false);
+    }
+
+    for (int i = 0; i < this->leftEdgePoints.size(); i++)
+    {
+        for (int j = 0; j < this->leftEdgePoints[i].size(); j++)
+        {
+            this->createBorder(this->leftEdgePoints[i][j].first - (patchSize) / 2, this->leftEdgePoints[i][j].second - (patchSize) / 2,
+                               this->leftEdgePoints[i][j].first + (patchSize) / 2, this->leftEdgePoints[i][j].second + (patchSize) / 2, 1);
+        }
+    }
+
+    this->writeBMPImage();
+}
+
+void BmpHandler::drawBordersFromVec(vector<pair<int, int>> &vec, int patchSize)
+{
+    for (auto v : vec)
+    {
+        this->createBorder(v.first - (patchSize) / 2, v.second - (patchSize) / 2,
+                           v.first + (patchSize) / 2, v.second + (patchSize) / 2, 1);
+    }
 }
