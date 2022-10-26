@@ -65,7 +65,7 @@ enum bmp_error bmpReadImage(BitMap *bitmap, const char *path)
         return BMP_ERROR;
     }
 
-    // 2) Allocate Buffers {this->original_img ^ this->img ^ this->grayscale_img}
+    // 2) Allocate Buffers {this->modified_img ^ this->grayscale_img}
     bmpAllocateBuffer(bitmap);
 
     const size_t height = bitmap->header.biHeight;
@@ -82,14 +82,48 @@ enum bmp_error bmpReadImage(BitMap *bitmap, const char *path)
                 printf("\nThere was an error while reading the image...");
                 return BMP_ERROR;
             }
-            // bitmap->original_img[0][r][w] = tmpBuff[0];
-            // bitmap->original_img[1][r][w] = tmpBuff[1];
-            // bitmap->original_img[2][r][w] = tmpBuff[2];
-            bitmap->grayscale_img[r][w] = bitmap->modified_img[r][w] = (tmpBuff[0] + tmpBuff[1] + tmpBuff[2]) / COLOR_CHANNELS;
+            bitmap->grayscale_img[r][w] = (tmpBuff[0] + tmpBuff[1] + tmpBuff[2]) / COLOR_CHANNELS;
         }
     }
 
-    // 3) Close the file
+    // 3) Apply grayscale on image
+
+    unsigned int hist[256] = {};
+    // 3.1) Calculate Histogram of Image
+
+    for (unsigned int i = 0; i < height; i++)
+    {
+        for (unsigned int j = 0; j < width; j++)
+        {
+            hist[(int)bitmap->grayscale_img[i][j]]++;
+        }
+    }
+    // 3.2) Calculate CDF image
+
+    unsigned int sum_of_hist[256];
+    unsigned int sum = 0;
+    for (short i = 1; i < 256; i++)
+    {
+        sum += hist[i];
+        sum_of_hist[i] = sum;
+    }
+
+    // 3.3) Apply CDF on Image
+
+    size_t area = height * width;
+    size_t dm = 256;
+    for (unsigned int i = 0; i < height; i++)
+    {
+        for (unsigned int j = 0; j < width; j++)
+        {
+            bitmap->modified_img[i][j] =
+                bitmap->grayscale_img[i][j] =
+                    sum_of_hist[(int)bitmap->grayscale_img[i][j]] * ((double)dm / area);
+        }
+    }
+
+    // 4) Close the file
+    fflush(fptr);
     fclose(fptr);
     return BMP_OK;
 }
@@ -132,7 +166,7 @@ enum bmp_error bmpWriteImage(const BitMap *bitmap, const char *path)
     {
         for (size_t w = 0; w < width; w++)
         {
-            tmpBuf[0] = tmpBuf[1] = tmpBuf[2] = bitmap->grayscale_img[r][w];
+            tmpBuf[0] = tmpBuf[1] = tmpBuf[2] = bitmap->modified_img[r][w];
             if (fwrite((char *)tmpBuf, 1, COLOR_CHANNELS, fptr) != COLOR_CHANNELS)
             {
                 fclose(fptr);
@@ -140,9 +174,9 @@ enum bmp_error bmpWriteImage(const BitMap *bitmap, const char *path)
                 return BMP_ERROR;
             }
         }
-        fflush(fptr);
     }
 
+    fflush(fptr);
     fclose(fptr);
     return BMP_OK;
 }

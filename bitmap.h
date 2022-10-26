@@ -49,10 +49,6 @@ typedef struct _pair_
     int y;
 } Pair;
 
-// Functions
-
-/*
- */
 enum bmp_error bmpReadHeader(BmpHeader *, FILE *);
 
 void bmpAllocateBuffer(BitMap *);
