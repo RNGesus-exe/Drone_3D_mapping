@@ -43,12 +43,6 @@ typedef struct _bitmap_
     BmpHeader header;              // This will store the header of the bmp image
 } BitMap;
 
-typedef struct _pair_
-{
-    int x;
-    int y;
-} Pair;
-
 enum bmp_error bmpReadHeader(BmpHeader *, FILE *);
 
 void bmpAllocateBuffer(BitMap *);
