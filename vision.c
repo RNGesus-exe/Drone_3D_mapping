@@ -22,9 +22,9 @@ enum error_msg applyEdgeDetection(EdgePoints *edgePoints, BitMap *image, int pat
     unsigned int areaToProcess = height - (patchSize * 2);
     unsigned int interval = (height / edgeLines);
     unsigned int curr_interval = patchSize;
-    for (int edgeNo = 0; edgeNo < edgeLines; edgeNo++, curr_interval += interval)
+    for (int edgeNo = 0; edgeNo < (edgeLines - 1); edgeNo++, curr_interval += interval)
     {
-
+        printf("\n%d,%d", curr_interval, patchSize);
         if (((curr_interval - patchSize) < 0) ||
             ((curr_interval + patchSize >= height)))
         {
@@ -105,19 +105,13 @@ enum error_msg applyEdgeDetection(EdgePoints *edgePoints, BitMap *image, int pat
         }
 
         // 8) Draw borders
-        for (int index = 0; index <= edgePoints->leftEdgePoints[edgeNo].length; index++)
+        for (int i = 0; i < edgePoints->leftEdgePoints[edgeNo].index; i++)
         {
-            // printf("\n%d,%d,%d,%d",
-            //        element_at(index, edgePoints->leftEdgePoints[edgeData]);
-            //        edgePoints->leftEdgePoints[edgeNo].data->x - (patchSize) / 2,
-            //        edgePoints->leftEdgePoints[edgeNo].data->y - (patchSize) / 2,
-            //        edgePoints->leftEdgePoints[edgeNo].data->x + (patchSize) / 2,
-            //        edgePoints->leftEdgePoints[edgeNo].data->y + (patchSize) / 2);
             createBorder(image,
-                         edgePoints->leftEdgePoints[edgeNo].data[index].x - (patchSize) / 2,
-                         edgePoints->leftEdgePoints[edgeNo].data[index].y - (patchSize) / 2,
-                         edgePoints->leftEdgePoints[edgeNo].data[index].x + (patchSize) / 2,
-                         edgePoints->leftEdgePoints[edgeNo].data[index].y + (patchSize) / 2);
+                         edgePoints->leftEdgePoints[edgeNo].data[i].x - (patchSize) / 2,
+                         edgePoints->leftEdgePoints[edgeNo].data[i].y - (patchSize) / 2,
+                         edgePoints->leftEdgePoints[edgeNo].data[i].x + (patchSize) / 2,
+                         edgePoints->leftEdgePoints[edgeNo].data[i].y + (patchSize) / 2);
         }
     }
     return ALL_OK;
@@ -140,6 +134,7 @@ void deallocateBuffers(BitMap *leftImage, BitMap *rightImage, EdgePoints *edgePo
 
 enum error_msg createBorder(BitMap *image, int x1, int y1, int x2, int y2)
 {
+    // printf("\n%d,%d,%d,%d", x1, x2, y1, y2);
     if ((x1 <= x2) &&
         (y1 <= y2))
     {
