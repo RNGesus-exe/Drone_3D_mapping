@@ -394,6 +394,7 @@ void BitMap::findEdgesInLeftImage(int patchSize, int edgeLines)
 void BitMap::applySobelEdgeDetection(int rowNo, int patchSize, int edgeLines, bool horizontalFlag, bool verticalFlag, bool cleanFlag)
 {
 
+    println("Start");
     if (!this->bmpHandle.getStreamHandle().getLeftBmp().isGrayScale)
     {
         throw runtime_error("The image needs to be in grayscale...");
@@ -407,6 +408,8 @@ void BitMap::applySobelEdgeDetection(int rowNo, int patchSize, int edgeLines, bo
 
     // 1) Create a 1D array to hold the edgeData and the variable which will hold Gx and Gy
     int *edgeData = new int[this->getWidth() - (patchSize * 2)]; // Subtracted two to avoid the first and last column
+    println("EdgeData allocatd");
+
     int Gx = 0;
     int Gy = 0;
 
@@ -495,8 +498,6 @@ void BitMap::applySobelEdgeDetection(int rowNo, int patchSize, int edgeLines, bo
     }
 
     // 6) Deallocate the edgeData from Heap
-    delete[] edgeData;
-    edgeData = nullptr;
 
     // 7) Store the edge points in {this->leftEdgePoints}
     pair<int, int> coord;
@@ -518,4 +519,9 @@ void BitMap::applySobelEdgeDetection(int rowNo, int patchSize, int edgeLines, bo
     }
     this->leftEdgePoints.push_back(vec);
     this->hasEdges = true;
+
+    delete[] edgeData;
+    edgeData = nullptr;
+
+    println("Function End");
 }

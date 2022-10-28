@@ -5,9 +5,13 @@ const int EDGE_LINES = 10;
 
 int main()
 {
-    BitMap bmp("Images/sampleA/left", "Images/sampleA/right1");
+    println("Start");
+    BitMap bmp("Images/sampleH/left", "Images/sampleH/right1");
+    println("AFter constructr");
     bmp.findEdgesInLeftImage(PATCH_SIZE, EDGE_LINES);
+    println("Edges Found");
     bmp.executeTemplateMatching(PATCH_SIZE, EDGE_LINES);
     bmp.displayImages();
+    println("END");
     return EXIT_SUCCESS;
 }
