@@ -82,13 +82,14 @@ enum bmp_error bmpReadImage(BitMap *bitmap, const char *path)
                 printf("\nThere was an error while reading the image...");
                 return BMP_ERROR;
             }
-            bitmap->grayscale_img[r][w] = (tmpBuff[0] + tmpBuff[1] + tmpBuff[2]) / COLOR_CHANNELS;
+            bitmap->modified_img[r][w] = bitmap->grayscale_img[r][w] = (tmpBuff[0] + tmpBuff[1] + tmpBuff[2]) / COLOR_CHANNELS;
         }
     }
 
     // 3) Apply grayscale on image
 
-    unsigned int hist[256] = {};
+    unsigned int hist[256] = {0};
+
     // 3.1) Calculate Histogram of Image
 
     for (unsigned int i = 0; i < height; i++)
