@@ -236,7 +236,7 @@ enum error_msg sobelTemplateMatching(EdgePoints *edges, BitMap *left_img, BitMap
     unsigned int curr_interval = patchSize;
 
     int curr_ssd = 0;
-    int best_ssd = __INT32_MAX__;
+    int best_ssd = INT_MAX;
     Pair best_coord;
 
     for (int edgeNo = 0; edgeNo < edgeLines; edgeNo++, curr_interval += interval)
@@ -256,7 +256,7 @@ enum error_msg sobelTemplateMatching(EdgePoints *edges, BitMap *left_img, BitMap
 
         for (int match_no = 0; match_no < edges->leftEdgePoints[edgeNo].index; match_no++)
         {
-            best_ssd = __INT32_MAX__;
+            best_ssd = INT_MAX;
 
             for (int col = (patchSize - 1); col < (right_img->header.biWidth - (patchSize - 1)); col++)
             {
