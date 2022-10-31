@@ -20,11 +20,11 @@ enum error_msg applyEdgeDetection(EdgePoints *edgePoints, BitMap *image, int pat
     size_t height = image->header.biHeight;
     size_t width = image->header.biWidth;
     unsigned int areaToProcess = height - (patchSize * 2);
-    unsigned int interval = (height / edgeLines);
+    unsigned int interval = (areaToProcess / edgeLines);
     unsigned int curr_interval = patchSize;
-    for (int edgeNo = 0; edgeNo < (edgeLines - 1); edgeNo++, curr_interval += interval)
+    for (int edgeNo = 0; edgeNo < edgeLines; edgeNo++, curr_interval += interval)
     {
-        printf("\n%d,%d", curr_interval, patchSize);
+        // printf("\n%d,%d", curr_interval, patchSize);
         if (((curr_interval - patchSize) < 0) ||
             ((curr_interval + patchSize >= height)))
         {
@@ -177,4 +177,403 @@ enum error_msg createBorder(BitMap *image, int x1, int y1, int x2, int y2)
         printf("\nThe coordinates do not seem to be correctly placed...");
         return BORDER_ERROR;
     }
+}
+
+void drawBordersFromVec(BitMap *right_img, List *edges, int patchSize)
+{
+    for (int i = 0; i < edges->index; i++)
+    {
+        createBorder(right_img, edges->data[i].x - (patchSize / 2), edges->data[i].y - (patchSize / 2),
+                     edges->data[i].x + (patchSize / 2), edges->data[i].y + (patchSize / 2));
+    }
+}
+
+enum error_msg sobelTemplateMatchOnRow(EdgePoints *edges, BitMap *left_img, BitMap *right_img, int patchSize, int edgeLines)
+{
+    size_t height = right_img->header.biHeight;
+    size_t width = right_img->header.biWidth;
+    unsigned int areaToProcess = height - (patchSize * 2);
+    unsigned int interval = (areaToProcess / edgeLines);
+    unsigned int curr_interval = patchSize;
+    printf("\nStarting match\n");
+
+    for (int edgeNo = 0; edgeNo < edgeLines; edgeNo++, curr_interval += interval)
+    {
+
+        if (edges->leftEdgePoints->length == 0)
+        {
+            printf("No edges\n");
+            return NO_EDGES;
+        }
+        if ((patchSize % 2 == 0) || patchSize < 3)
+        {
+            printf("Incorrect Patch Size\n");
+            return PATCH_SIZE_INCORRECT;
+        }
+        if (((curr_interval - patchSize) < 0) &&
+            ((curr_interval + patchSize) >= right_img->header.biHeight))
+        {
+            printf("Row Index is out of range...\n");
+            return INDEX_OUT_OF_RANGE;
+        }
+        printf("Edge Points : %d\n", edges->leftEdgePoints[edgeNo].index);
+        for (int match_no = 0; match_no < edges->leftEdgePoints[edgeNo].index; match_no++)
+        {
+            int curr_ssd = 0;
+            int best_ssd = INT_MAX;
+            Pair best_coord;
+
+            printf("Inside Loop\n");
+            best_ssd = INT_MAX;
+
+            for (int col = (patchSize - 1); col < (right_img->header.biWidth - (patchSize - 1)); col++)
+            {
+                curr_ssd = 0;
+                for (int r = 0; r < patchSize; r++)
+                {
+                    for (int w = 0; w < patchSize; w++)
+                    {
+                        curr_ssd += (int)pow(abs(left_img->grayscale_img[(edges->leftEdgePoints[edgeNo].data[match_no].x - (patchSize - 1) / 2) + r]
+                                                                        [(edges->leftEdgePoints[edgeNo].data[match_no].y - (patchSize - 1) / 2) + w] -
+                                                 right_img->grayscale_img[(edges->leftEdgePoints[edgeNo].data[match_no].x - (patchSize - 1) / 2) + r]
+                                                                         [(col - (patchSize - 1) / 2) + w]),
+                                             2);
+                    }
+                }
+                // Compare current ssd with best ssd
+                if (curr_ssd < best_ssd)
+                {
+                    best_ssd = curr_ssd;
+                    best_coord.x = edges->leftEdgePoints[edgeNo].data[match_no].x;
+                    best_coord.y = col;
+                }
+
+                bool patchContainsEdge = applySobelEdgeDetectionOnPatch(right_img, patchSize, best_coord.x - (patchSize) / 2,
+                                                                        best_coord.y - (patchSize) / 2, best_coord.x + (patchSize) / 2,
+                                                                        best_coord.y + (patchSize) / 2, true, true, false);
+
+                bool histogramMatches = checkHistogram(left_img, right_img, edges->leftEdgePoints[edgeNo].data[match_no].x - (patchSize / 2), edges->leftEdgePoints[edgeNo].data[match_no].y - (patchSize / 2), edges->leftEdgePoints[edgeNo].data[match_no].x + (patchSize / 2),
+                                                       edges->leftEdgePoints[edgeNo].data[match_no].y + (patchSize / 2), best_coord.x - (patchSize / 2), best_coord.y - (patchSize / 2), best_coord.x + (patchSize / 2), best_coord.y + (patchSize / 2));
+
+                // DROP THE USELESS EDGE POINTS
+                if (((255 * 255 * patchSize * patchSize * 0.01) >= best_ssd) &&
+                    (abs(best_coord.y - edges->leftEdgePoints[edgeNo].data[match_no].y) < right_img->header.biWidth / 2) && // Check Distance between points
+                    (true || (is_inrange(best_coord.y, &edges->rightEdgePoints[edgeNo], patchSize))) &&
+                    patchContainsEdge &&
+                    histogramMatches)
+                {
+                    printf("Template Match Found..!\n");
+                    push(best_coord, &edges->rightEdgePoints[edgeNo]);
+                }
+                else
+                {
+                    // this->leftEdgePoints[edgeNo].erase(this->leftEdgePoints[edgeNo].begin() + edgeNo);
+                    // edgeNo--;
+                    remove_at(edgeNo, &edges->leftEdgePoints[edgeNo]);
+                    edgeNo--;
+                }
+            }
+            // draw borders
+            printf("Drawing borders\n");
+            drawBordersFromVec(right_img, &edges->leftEdgePoints[edgeNo], patchSize);
+        }
+        printf("LOOP END \n");
+    }
+}
+
+bool applySobelEdgeDetectionOnPatch(BitMap *right_img, int patchSize, int x1, int y1, int x2, int y2, bool horizontalFlag, bool verticalFlag, bool cleanUp)
+{
+    if (((x1 - patchSize) < 0) &&
+        ((x1 + patchSize) >= right_img->header.biHeight) &&
+        ((x2 - patchSize) < 0) &&
+        ((x2 + patchSize) >= right_img->header.biHeight) &&
+        ((y1 - patchSize) < 0) &&
+        ((y1 + patchSize) >= right_img->header.biHeight) &&
+        ((y2 - patchSize) < 0) &&
+        ((y2 + patchSize) >= right_img->header.biHeight))
+    {
+        fprintf(stderr, "Patch is out of range.\n");
+        return false;
+    }
+    bool hasEdge = false;
+    // 1) Apply Constraints check
+    if ((x1 <= x2) &&
+        (y1 <= y2) &&
+        (x1 > 0) &&
+        (x2 < (right_img->header.biHeight - 1)) &&
+        (y1 > 0) &&
+        (y2 < (right_img->header.biWidth - 1)))
+    {
+        // 2) Allocating memory
+        int **edgeData = (int **)malloc(((x2 - x1) + 1) * sizeof(int *));
+        for (int r = 0; r <= (x2 - x1); r++)
+        {
+            edgeData[r] = (int *)malloc(((y2 - y1) + 1) * sizeof(int));
+        }
+        int Gx = 0;
+        int Gy = 0;
+
+        // 3) Define vertical and horizontal kernals
+        const int sobelVerticalMask[3][3] = {
+            {1, 0, -1},
+            {2, 0, -2},
+            {1, 0, -1}};
+        const int sobelHorizontalMask[3][3] = {
+            {1, 2, 1},
+            {0, 0, 0},
+            {-1, -2, -1}};
+
+        // 4) Apply Sobel Operation on the patch : S = sqrt( Gx^2 + Gy^2 ) {Gx: Horizontal Sobel, Gy: Vertical Sobel}
+        for (int row = x1; row < (x2 + 1); row++)
+        {
+            for (int col = y1; col < (y2 + 1); col++)
+            {
+                // Reset Gx and Gy
+                Gx = 0;
+                Gy = 0;
+
+                // Apply horizontal sobel on 3x3 patch {Gx}
+                if (horizontalFlag)
+                {
+                    for (int i = 0; i < 3; i++)
+                    {
+                        for (int j = 0; j < 3; j++)
+                        {
+                            Gx += (right_img->grayscale_img[(row - 1) + i][(col - 1) + j] * sobelHorizontalMask[i][j]);
+                        }
+                    }
+                }
+
+                // Apply vertical sobel on 3x3 patch {Gy}
+                if (verticalFlag)
+                {
+                    for (int i = 0; i < 3; i++)
+                    {
+                        for (int j = 0; j < 3; j++)
+                        {
+                            Gy += (right_img->grayscale_img[(row - 1) + i][(col - 1) + j] * sobelVerticalMask[i][j]);
+                        }
+                    }
+                }
+                edgeData[row - x1][col - y1] = (int)sqrt((int)pow(Gx, 2) + (int)pow(Gy, 2));
+            }
+        }
+
+        // 5) Clean the Edges
+        if (cleanUp)
+        {
+            // a) First make the the edge into salt & pepper
+            for (int r = 0; r <= (x2 - x1); r++)
+            {
+                for (int w = 0; w <= (y2 - y1); w++)
+                {
+                    if ((int)edgeData[r][w] >= 100)
+                    {
+                        edgeData[r][w] = 255;
+                    }
+                    else
+                    {
+                        edgeData[r][w] = 0;
+                    }
+                }
+            }
+        }
+
+        // 6) Check if the patch has atleast patchSize amount of edges in it
+        int amountOfEdges = 0;
+        for (int r = 0; r <= (x2 - x1); r++)
+        {
+            for (int w = 0; w <= (y2 - y1); w++)
+            {
+                if ((int)edgeData[r][w] >= 100)
+                {
+                    amountOfEdges++;
+                }
+            }
+        }
+
+        if (amountOfEdges >= patchSize)
+        {
+            // 7.1) Copy the edgeData into the Real Image
+            // for (int r = 0; r <= (x2 - x1); r++)
+            // {
+            //     for (int c = 0; c <= (y2 - y1); c++)
+            //     {
+
+            //         this->img[0][x1 + r][y1 + c] =
+            //             this->img[1][x1 + r][y1 + c] =
+            //                 this->img[2][x1 + r][y1 + c] = edgeData[r][c];
+            //     }
+            // }
+
+            // 7.2) As we have found an edge and copied the data we can leave
+            hasEdge = true;
+        }
+
+        // 8) Free patch memory
+        for (int r = 0; r <= (x2 - x1); r++)
+        {
+            free(edgeData[r]);
+        }
+        free(edgeData);
+        edgeData = NULL;
+    }
+    else
+    {
+        fprintf(stderr, "Something wrong in {applySobelEdgeDetectionOnPatch}\n");
+    }
+    return hasEdge;
+}
+
+bool checkHistogram(BitMap *left_img, BitMap *right_img, int x1, int y1, int x2, int y2, int _x1, int _y1, int _x2, int _y2)
+{
+    const int FACTOR = 0.5;
+    if ((x1 <= x2) && (y1 <= y2))
+    {
+        if ((x1 >= 0) && (x2 < left_img->header.biHeight) && (y1 >= 0) && (y2 < left_img->header.biWidth))
+        {
+            int left_hist[10] = {0};
+            int right_hist[10] = {0};
+            for (int r = x1; r <= x2; r++)
+            {
+                for (int c = y1; c <= y2; c++)
+                {
+                    if (((int)left_img->grayscale_img[r][c] >= 0) &&
+                        ((int)left_img->grayscale_img[r][c] < 25))
+                    {
+                        left_hist[0]++;
+                    }
+                    else if (((int)left_img->grayscale_img[r][c] >= 25) &&
+                             ((int)left_img->grayscale_img[r][c] < 50))
+                    {
+                        left_hist[1]++;
+                    }
+                    else if (((int)left_img->grayscale_img[r][c] >= 50) &&
+                             ((int)left_img->grayscale_img[r][c] < 75))
+                    {
+                        left_hist[2]++;
+                    }
+                    else if (((int)left_img->grayscale_img[r][c] >= 75) &&
+                             ((int)left_img->grayscale_img[r][c] < 100))
+                    {
+                        left_hist[3]++;
+                    }
+                    else if (((int)left_img->grayscale_img[r][c] >= 100) &&
+                             ((int)left_img->grayscale_img[r][c] < 125))
+                    {
+                        left_hist[4]++;
+                    }
+                    else if (((int)left_img->grayscale_img[r][c] >= 125) &&
+                             ((int)left_img->grayscale_img[r][c] < 150))
+                    {
+                        left_hist[5]++;
+                    }
+                    else if (((int)left_img->grayscale_img[r][c] >= 150) &&
+                             ((int)left_img->grayscale_img[r][c] < 175))
+                    {
+                        left_hist[6]++;
+                    }
+                    else if (((int)left_img->grayscale_img[r][c] >= 175) &&
+                             ((int)left_img->grayscale_img[r][c] < 200))
+                    {
+                        left_hist[7]++;
+                    }
+                    else if (((int)left_img->grayscale_img[r][c] >= 200) &&
+                             ((int)left_img->grayscale_img[r][c] < 225))
+                    {
+                        left_hist[8]++;
+                    }
+                    else if (((int)left_img->grayscale_img[r][c] >= 225) &&
+                             ((int)left_img->grayscale_img[r][c] <= 255))
+                    {
+                        left_hist[9]++;
+                    }
+                }
+                for (int r = _x1; r <= _x2; r++)
+                {
+                    for (int c = _y1; c <= _y2; c++)
+                    {
+                        if (((int)right_img->grayscale_img[r][c] >= 0) &&
+                            ((int)right_img->grayscale_img[r][c] < 25))
+                        {
+                            right_hist[0]++;
+                        }
+                        else if (((int)right_img->grayscale_img[r][c] >= 25) &&
+                                 ((int)right_img->grayscale_img[r][c] < 50))
+                        {
+                            right_hist[1]++;
+                        }
+                        else if (((int)right_img->grayscale_img[r][c] >= 50) &&
+                                 ((int)right_img->grayscale_img[r][c] < 75))
+                        {
+                            right_hist[2]++;
+                        }
+                        else if (((int)right_img->grayscale_img[r][c] >= 75) &&
+                                 ((int)right_img->grayscale_img[r][c] < 100))
+                        {
+                            right_hist[3]++;
+                        }
+                        else if (((int)right_img->grayscale_img[r][c] >= 100) &&
+                                 ((int)right_img->grayscale_img[r][c] < 125))
+                        {
+                            right_hist[4]++;
+                        }
+                        else if (((int)right_img->grayscale_img[r][c] >= 125) &&
+                                 ((int)right_img->grayscale_img[r][c] < 150))
+                        {
+                            right_hist[5]++;
+                        }
+                        else if (((int)right_img->grayscale_img[r][c] >= 150) &&
+                                 ((int)right_img->grayscale_img[r][c] < 175))
+                        {
+                            right_hist[6]++;
+                        }
+                        else if (((int)right_img->grayscale_img[r][c] >= 175) &&
+                                 ((int)right_img->grayscale_img[r][c] < 200))
+                        {
+                            right_hist[7]++;
+                        }
+                        else if (((int)right_img->grayscale_img[r][c] >= 200) &&
+                                 ((int)right_img->grayscale_img[r][c] < 225))
+                        {
+                            right_hist[8]++;
+                        }
+                        else if (((int)right_img->grayscale_img[r][c] >= 225) &&
+                                 ((int)right_img->grayscale_img[r][c] <= 255))
+                        {
+                            right_hist[9]++;
+                        }
+                    }
+                }
+                printf("LEFT = ");
+                for (int i = 0; i < 10; i++)
+                {
+                    printf("%d,", left_hist[i]);
+                }
+                printf("\tRIGHT = ");
+                for (int i = 0; i < 10; i++)
+                {
+                    printf("%d,", right_hist[i]);
+                }
+                printf("\n");
+                for (int i = 0; i < 10; i++)
+                {
+                    if (abs(left_hist[i] - right_hist[i]) >= FACTOR)
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+        else
+        {
+            fprintf(stderr, "The coordinates are not within the bounds of image\n");
+        }
+    }
+    else
+    {
+        fprintf(stderr, "The coordinates do not seem to be correct\n");
+    }
+    return false;
 }

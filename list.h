@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 typedef struct
 {
@@ -34,5 +35,7 @@ void print_list(List *);
 void dealloc_list(List *);
 
 void list_clear(List *);
+
+bool is_inrange(int val, List *edges, int range);
 
 #endif

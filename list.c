@@ -114,3 +114,16 @@ void print_pair(Pair pair)
 {
     printf("(%d,%d)\n", pair.x, pair.y);
 }
+
+bool is_inrange(int val, List *edges, int range)
+{
+    for (int i = 0; i < edges->index; i++)
+    {
+        if ((val > (edges->data[i].y)) &&
+            (val < (edges->data[i].y + range)))
+        {
+            return false;
+        }
+    }
+    return true;
+}
