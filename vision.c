@@ -105,14 +105,15 @@ enum error_msg applyEdgeDetection(EdgePoints *edgePoints, BitMap *image, int pat
         }
 
         // 8) Draw borders
-        for (int i = 0; i < edgePoints->leftEdgePoints[edgeNo].index; i++)
-        {
-            createBorder(image,
-                         edgePoints->leftEdgePoints[edgeNo].data[i].x - (patchSize) / 2,
-                         edgePoints->leftEdgePoints[edgeNo].data[i].y - (patchSize) / 2,
-                         edgePoints->leftEdgePoints[edgeNo].data[i].x + (patchSize) / 2,
-                         edgePoints->leftEdgePoints[edgeNo].data[i].y + (patchSize) / 2);
-        }
+        // for (int i = 0; i < edgePoints->leftEdgePoints[edgeNo].index; i++)
+        // {
+        //     createBorder(image,
+        //                  edgePoints->leftEdgePoints[edgeNo].data[i].x - (patchSize) / 2,
+        //                  edgePoints->leftEdgePoints[edgeNo].data[i].y - (patchSize) / 2,
+        //                  edgePoints->leftEdgePoints[edgeNo].data[i].x + (patchSize) / 2,
+        //                  edgePoints->leftEdgePoints[edgeNo].data[i].y + (patchSize) / 2,
+        //                  1);
+        // }
     }
     return ALL_OK;
 }
@@ -132,7 +133,7 @@ void deallocateBuffers(BitMap *leftImage, BitMap *rightImage, EdgePoints *edgePo
         edgePoints->rightEdgePoints = NULL;
 }
 
-enum error_msg createBorder(BitMap *image, int x1, int y1, int x2, int y2)
+enum error_msg createBorder(BitMap *image, int x1, int y1, int x2, int y2, bool color)
 {
     // printf("\n%d,%d,%d,%d", x1, x2, y1, y2);
     if ((x1 <= x2) &&
@@ -143,27 +144,55 @@ enum error_msg createBorder(BitMap *image, int x1, int y1, int x2, int y2)
             (y1 >= 0) &&
             (y2 < image->header.biWidth))
         { // (x1,y1) to (x1,y2) Top Line
-            for (unsigned int col = y1; col <= y2; ++col)
+            if (color)
             {
-                image->modified_img[x1][col] = 255;
-            }
+                for (unsigned int col = y1; col <= y2; ++col)
+                {
+                    image->modified_img[x1][col] = 255;
+                }
 
-            // (x2,y1) to (x2,y2) Bottom Line
-            for (unsigned int col = y1; col <= y2; ++col)
-            {
-                image->modified_img[x2][col] = 255;
-            }
+                // (x2,y1) to (x2,y2) Bottom Line
+                for (unsigned int col = y1; col <= y2; ++col)
+                {
+                    image->modified_img[x2][col] = 255;
+                }
 
-            // (x1,y1) to (x2,y1) Left Line
-            for (unsigned int row = x1; row <= x2; ++row)
-            {
-                image->modified_img[row][y1] = 255;
-            }
+                // (x1,y1) to (x2,y1) Left Line
+                for (unsigned int row = x1; row <= x2; ++row)
+                {
+                    image->modified_img[row][y1] = 255;
+                }
 
-            // (x1,y2) to (x2,y2) Right Line
-            for (unsigned int row = x1; row <= x2; ++row)
+                // (x1,y2) to (x2,y2) Right Line
+                for (unsigned int row = x1; row <= x2; ++row)
+                {
+                    image->modified_img[row][y2] = 255;
+                }
+            }
+            else
             {
-                image->modified_img[row][y2] = 255;
+                for (unsigned int col = y1; col <= y2; ++col)
+                {
+                    image->modified_img[x1][col] = 0;
+                }
+
+                // (x2,y1) to (x2,y2) Bottom Line
+                for (unsigned int col = y1; col <= y2; ++col)
+                {
+                    image->modified_img[x2][col] = 0;
+                }
+
+                // (x1,y1) to (x2,y1) Left Line
+                for (unsigned int row = x1; row <= x2; ++row)
+                {
+                    image->modified_img[row][y1] = 0;
+                }
+
+                // (x1,y2) to (x2,y2) Right Line
+                for (unsigned int row = x1; row <= x2; ++row)
+                {
+                    image->modified_img[row][y2] = 0;
+                }
             }
         }
         else
@@ -179,32 +208,40 @@ enum error_msg createBorder(BitMap *image, int x1, int y1, int x2, int y2)
     }
 }
 
-void drawBordersFromVec(BitMap *right_img, List *edges, int patchSize)
+void drawBordersFromVec(BitMap *right_img, List *edges, int patchSize, bool color)
 {
     for (int i = 0; i < edges->index; i++)
     {
         createBorder(right_img, edges->data[i].x - (patchSize / 2), edges->data[i].y - (patchSize / 2),
-                     edges->data[i].x + (patchSize / 2), edges->data[i].y + (patchSize / 2));
+                     edges->data[i].x + (patchSize / 2), edges->data[i].y + (patchSize / 2), color);
     }
 }
 
-enum error_msg sobelTemplateMatchOnRow(EdgePoints *edges, BitMap *left_img, BitMap *right_img, int patchSize, int edgeLines)
+int myPow(int x)
+{
+    return x * x;
+}
+
+int myAbs(int x)
+{
+    return (x < 0) ? -1 * x : x;
+}
+
+enum error_msg sobelTemplateMatching(EdgePoints *edges, BitMap *left_img, BitMap *right_img, int patchSize, int edgeLines)
 {
     size_t height = right_img->header.biHeight;
     size_t width = right_img->header.biWidth;
     unsigned int areaToProcess = height - (patchSize * 2);
     unsigned int interval = (areaToProcess / edgeLines);
     unsigned int curr_interval = patchSize;
-    printf("\nStarting match\n");
+
+    int curr_ssd = 0;
+    int best_ssd = __INT32_MAX__;
+    Pair best_coord;
 
     for (int edgeNo = 0; edgeNo < edgeLines; edgeNo++, curr_interval += interval)
     {
 
-        if (edges->leftEdgePoints->length == 0)
-        {
-            printf("No edges\n");
-            return NO_EDGES;
-        }
         if ((patchSize % 2 == 0) || patchSize < 3)
         {
             printf("Incorrect Patch Size\n");
@@ -216,30 +253,26 @@ enum error_msg sobelTemplateMatchOnRow(EdgePoints *edges, BitMap *left_img, BitM
             printf("Row Index is out of range...\n");
             return INDEX_OUT_OF_RANGE;
         }
-        printf("Edge Points : %d\n", edges->leftEdgePoints[edgeNo].index);
+
         for (int match_no = 0; match_no < edges->leftEdgePoints[edgeNo].index; match_no++)
         {
-            int curr_ssd = 0;
-            int best_ssd = INT_MAX;
-            Pair best_coord;
-
-            printf("Inside Loop\n");
-            best_ssd = INT_MAX;
+            best_ssd = __INT32_MAX__;
 
             for (int col = (patchSize - 1); col < (right_img->header.biWidth - (patchSize - 1)); col++)
             {
+
                 curr_ssd = 0;
                 for (int r = 0; r < patchSize; r++)
                 {
                     for (int w = 0; w < patchSize; w++)
                     {
-                        curr_ssd += (int)pow(abs(left_img->grayscale_img[(edges->leftEdgePoints[edgeNo].data[match_no].x - (patchSize - 1) / 2) + r]
-                                                                        [(edges->leftEdgePoints[edgeNo].data[match_no].y - (patchSize - 1) / 2) + w] -
-                                                 right_img->grayscale_img[(edges->leftEdgePoints[edgeNo].data[match_no].x - (patchSize - 1) / 2) + r]
-                                                                         [(col - (patchSize - 1) / 2) + w]),
-                                             2);
+                        curr_ssd += myPow(myAbs(left_img->grayscale_img[(edges->leftEdgePoints[edgeNo].data[match_no].x - patchSize / 2) + r]
+                                                                       [(edges->leftEdgePoints[edgeNo].data[match_no].y - patchSize / 2) + w] -
+                                                right_img->grayscale_img[(edges->leftEdgePoints[edgeNo].data[match_no].x - patchSize / 2) + r]
+                                                                        [(col - patchSize / 2) + w]));
                     }
                 }
+
                 // Compare current ssd with best ssd
                 if (curr_ssd < best_ssd)
                 {
@@ -247,41 +280,38 @@ enum error_msg sobelTemplateMatchOnRow(EdgePoints *edges, BitMap *left_img, BitM
                     best_coord.x = edges->leftEdgePoints[edgeNo].data[match_no].x;
                     best_coord.y = col;
                 }
-
-                bool patchContainsEdge = applySobelEdgeDetectionOnPatch(right_img, patchSize, best_coord.x - (patchSize) / 2,
-                                                                        best_coord.y - (patchSize) / 2, best_coord.x + (patchSize) / 2,
-                                                                        best_coord.y + (patchSize) / 2, true, true, false);
-
-                bool histogramMatches = checkHistogram(left_img, right_img, edges->leftEdgePoints[edgeNo].data[match_no].x - (patchSize / 2), edges->leftEdgePoints[edgeNo].data[match_no].y - (patchSize / 2), edges->leftEdgePoints[edgeNo].data[match_no].x + (patchSize / 2),
-                                                       edges->leftEdgePoints[edgeNo].data[match_no].y + (patchSize / 2), best_coord.x - (patchSize / 2), best_coord.y - (patchSize / 2), best_coord.x + (patchSize / 2), best_coord.y + (patchSize / 2));
-
-                // DROP THE USELESS EDGE POINTS
-                if (((255 * 255 * patchSize * patchSize * 0.01) >= best_ssd) &&
-                    (abs(best_coord.y - edges->leftEdgePoints[edgeNo].data[match_no].y) < right_img->header.biWidth / 2) && // Check Distance between points
-                    (true || (is_inrange(best_coord.y, &edges->rightEdgePoints[edgeNo], patchSize))) &&
-                    patchContainsEdge &&
-                    histogramMatches)
-                {
-                    printf("Template Match Found..!\n");
-                    push(best_coord, &edges->rightEdgePoints[edgeNo]);
-                }
-                else
-                {
-                    // this->leftEdgePoints[edgeNo].erase(this->leftEdgePoints[edgeNo].begin() + edgeNo);
-                    // edgeNo--;
-                    remove_at(edgeNo, &edges->leftEdgePoints[edgeNo]);
-                    edgeNo--;
-                }
             }
-            // draw borders
-            printf("Drawing borders\n");
-            drawBordersFromVec(right_img, &edges->leftEdgePoints[edgeNo], patchSize);
+
+            bool patchContainsEdge = applySobelEdgeDetectionOnPatch(right_img, patchSize, best_coord.x - (patchSize) / 2,
+                                                                    best_coord.y - (patchSize) / 2, best_coord.x + (patchSize) / 2,
+                                                                    best_coord.y + (patchSize) / 2);
+
+            bool histogramMatches = checkHistogram(left_img, right_img, edges->leftEdgePoints[edgeNo].data[match_no].x - (patchSize / 2), edges->leftEdgePoints[edgeNo].data[match_no].y - (patchSize / 2), edges->leftEdgePoints[edgeNo].data[match_no].x + (patchSize / 2),
+                                                   edges->leftEdgePoints[edgeNo].data[match_no].y + (patchSize / 2), best_coord.x - (patchSize / 2), best_coord.y - (patchSize / 2), best_coord.x + (patchSize / 2), best_coord.y + (patchSize / 2));
+
+            histogramMatches = true; // Remove later on
+
+            // DROP THE USELESS EDGE POINTS
+            if ((abs(best_coord.y - edges->leftEdgePoints[edgeNo].data[match_no].y) < right_img->header.biWidth / 2) && // Check Distance between points
+                (!edges->rightEdgePoints[edgeNo].index || (isInRange(best_coord.y, &edges->rightEdgePoints[edgeNo], patchSize))) &&
+                patchContainsEdge &&
+                histogramMatches)
+            {
+                push(best_coord, &edges->rightEdgePoints[edgeNo]);
+            }
+            else
+            {
+                remove_at(match_no, &edges->leftEdgePoints[edgeNo]);
+                match_no--;
+            }
         }
-        printf("LOOP END \n");
+        drawBordersFromVec(right_img, &edges->rightEdgePoints[edgeNo], patchSize, 1);
+        drawBordersFromVec(left_img, &edges->leftEdgePoints[edgeNo], patchSize, 1);
     }
+    return ALL_OK;
 }
 
-bool applySobelEdgeDetectionOnPatch(BitMap *right_img, int patchSize, int x1, int y1, int x2, int y2, bool horizontalFlag, bool verticalFlag, bool cleanUp)
+bool applySobelEdgeDetectionOnPatch(BitMap *right_img, int patchSize, int x1, int y1, int x2, int y2)
 {
     if (((x1 - patchSize) < 0) &&
         ((x1 + patchSize) >= right_img->header.biHeight) &&
@@ -310,7 +340,6 @@ bool applySobelEdgeDetectionOnPatch(BitMap *right_img, int patchSize, int x1, in
         {
             edgeData[r] = (int *)malloc(((y2 - y1) + 1) * sizeof(int));
         }
-        int Gx = 0;
         int Gy = 0;
 
         // 3) Define vertical and horizontal kernals
@@ -318,63 +347,38 @@ bool applySobelEdgeDetectionOnPatch(BitMap *right_img, int patchSize, int x1, in
             {1, 0, -1},
             {2, 0, -2},
             {1, 0, -1}};
-        const int sobelHorizontalMask[3][3] = {
-            {1, 2, 1},
-            {0, 0, 0},
-            {-1, -2, -1}};
 
         // 4) Apply Sobel Operation on the patch : S = sqrt( Gx^2 + Gy^2 ) {Gx: Horizontal Sobel, Gy: Vertical Sobel}
         for (int row = x1; row < (x2 + 1); row++)
         {
             for (int col = y1; col < (y2 + 1); col++)
             {
-                // Reset Gx and Gy
-                Gx = 0;
                 Gy = 0;
 
-                // Apply horizontal sobel on 3x3 patch {Gx}
-                if (horizontalFlag)
-                {
-                    for (int i = 0; i < 3; i++)
-                    {
-                        for (int j = 0; j < 3; j++)
-                        {
-                            Gx += (right_img->grayscale_img[(row - 1) + i][(col - 1) + j] * sobelHorizontalMask[i][j]);
-                        }
-                    }
-                }
-
                 // Apply vertical sobel on 3x3 patch {Gy}
-                if (verticalFlag)
+                for (int i = 0; i < 3; i++)
                 {
-                    for (int i = 0; i < 3; i++)
+                    for (int j = 0; j < 3; j++)
                     {
-                        for (int j = 0; j < 3; j++)
-                        {
-                            Gy += (right_img->grayscale_img[(row - 1) + i][(col - 1) + j] * sobelVerticalMask[i][j]);
-                        }
+                        Gy += (right_img->grayscale_img[(row - 1) + i][(col - 1) + j] * sobelVerticalMask[i][j]);
                     }
                 }
-                edgeData[row - x1][col - y1] = (int)sqrt((int)pow(Gx, 2) + (int)pow(Gy, 2));
+                edgeData[row - x1][col - y1] = (int)sqrt((int)pow(Gy, 2));
             }
         }
 
-        // 5) Clean the Edges
-        if (cleanUp)
+        // 5) Clean the Edges into salt and pepper
+        for (int r = 0; r <= (x2 - x1); r++)
         {
-            // a) First make the the edge into salt & pepper
-            for (int r = 0; r <= (x2 - x1); r++)
+            for (int w = 0; w <= (y2 - y1); w++)
             {
-                for (int w = 0; w <= (y2 - y1); w++)
+                if ((int)edgeData[r][w] >= 100)
                 {
-                    if ((int)edgeData[r][w] >= 100)
-                    {
-                        edgeData[r][w] = 255;
-                    }
-                    else
-                    {
-                        edgeData[r][w] = 0;
-                    }
+                    edgeData[r][w] = 255;
+                }
+                else
+                {
+                    edgeData[r][w] = 0;
                 }
             }
         }
@@ -427,7 +431,8 @@ bool applySobelEdgeDetectionOnPatch(BitMap *right_img, int patchSize, int x1, in
 
 bool checkHistogram(BitMap *left_img, BitMap *right_img, int x1, int y1, int x2, int y2, int _x1, int _y1, int _x2, int _y2)
 {
-    const int FACTOR = 0.5;
+    const int THRESHOLD = 25; // amount of pixels per index in arr
+    const double FACTOR = 0.4;
     if ((x1 <= x2) && (y1 <= y2))
     {
         if ((x1 >= 0) && (x2 < left_img->header.biHeight) && (y1 >= 0) && (y2 < left_img->header.biWidth))
@@ -489,6 +494,7 @@ bool checkHistogram(BitMap *left_img, BitMap *right_img, int x1, int y1, int x2,
                         left_hist[9]++;
                     }
                 }
+
                 for (int r = _x1; r <= _x2; r++)
                 {
                     for (int c = _y1; c <= _y2; c++)
@@ -545,20 +551,20 @@ bool checkHistogram(BitMap *left_img, BitMap *right_img, int x1, int y1, int x2,
                         }
                     }
                 }
-                printf("LEFT = ");
+                // printf("LEFT = ");
+                // for (int i = 0; i < 10; i++)
+                // {
+                //     printf("%d,", left_hist[i]);
+                // }
+                // printf("\tRIGHT = ");
+                // for (int i = 0; i < 10; i++)
+                // {
+                //     printf("%d,", right_hist[i]);
+                // }
+                // printf("\n");
                 for (int i = 0; i < 10; i++)
                 {
-                    printf("%d,", left_hist[i]);
-                }
-                printf("\tRIGHT = ");
-                for (int i = 0; i < 10; i++)
-                {
-                    printf("%d,", right_hist[i]);
-                }
-                printf("\n");
-                for (int i = 0; i < 10; i++)
-                {
-                    if (abs(left_hist[i] - right_hist[i]) >= FACTOR)
+                    if (abs(left_hist[i] - right_hist[i]) >= (THRESHOLD * FACTOR))
                     {
                         return false;
                     }

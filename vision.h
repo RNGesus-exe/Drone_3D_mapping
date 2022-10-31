@@ -22,15 +22,13 @@ typedef struct _edge_points
 
 void init(int, EdgePoints *, const char *, BitMap *, const char *, BitMap *);
 
-enum error_msg createBorder(BitMap *, int, int, int, int);
+enum error_msg createBorder(BitMap *, int, int, int, int, bool);
 
-void drawBordersFromVec(BitMap *right_img, List *edges, int patchSize);
+void drawBordersFromVec(BitMap *right_img, List *edges, int patchSize, bool);
 
 enum error_msg applyEdgeDetection(EdgePoints *, BitMap *, int, int);
 
-enum error_msg sobelTemplateMatchOnRow(EdgePoints *edges, BitMap *left_img, BitMap *right_img, int patchSize, int edgeLines);
-
-void sobelTemplateMatch(EdgePoints *edges, BitMap *left_img, BitMap *right_img, int rowNo, int patchSize, int rowOffset);
+enum error_msg sobelTemplateMatching(EdgePoints *edges, BitMap *left_img, BitMap *right_img, int patchSize, int edgeLines);
 
 /*
     Applies Sobel Operator on a patch to confirm if matched area is actually an edge.
@@ -43,13 +41,11 @@ void sobelTemplateMatch(EdgePoints *edges, BitMap *left_img, BitMap *right_img, 
     @param horizontalFlag - True if you want to apply horizontal kernal
     @param verticalFlag - True if you want to apply vertical kernal
     @param cleanUp - True if you want to binarize the edges using Salt & Pepper algorithm
-
 */
-bool applySobelEdgeDetectionOnPatch(BitMap *right_img, int patchSize, int x1, int y1, int x2, int y2, bool horizontalFlag, bool verticalFlag, bool cleanUp);
+bool applySobelEdgeDetectionOnPatch(BitMap *right_img, int patchSize, int x1, int y1, int x2, int y2);
 
 /*
     Calculates histograms of both Images and compares them.
-
     @param left_img - Reference to left image
     @param right_img - Reference to right image
     @param x1 - X-Coordinate of top-left corner of the patch from left image
@@ -65,5 +61,9 @@ bool applySobelEdgeDetectionOnPatch(BitMap *right_img, int patchSize, int x1, in
 bool checkHistogram(BitMap *left_img, BitMap *right_img, int x1, int y1, int x2, int y2, int _x1, int _y1, int _x2, int _y2);
 
 void deallocateBuffers(BitMap *, BitMap *, EdgePoints *, int);
+
+int myPow(int);
+
+int myAbs(int);
 
 #endif

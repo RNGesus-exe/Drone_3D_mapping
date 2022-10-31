@@ -82,7 +82,7 @@ enum bmp_error bmpReadImage(BitMap *bitmap, const char *path)
                 printf("\nThere was an error while reading the image...");
                 return BMP_ERROR;
             }
-            bitmap->modified_img[r][w] = bitmap->grayscale_img[r][w] = (tmpBuff[0] + tmpBuff[1] + tmpBuff[2]) / COLOR_CHANNELS;
+            bitmap->grayscale_img[height - r - 1][w] = (tmpBuff[0] + tmpBuff[1] + tmpBuff[2]) / COLOR_CHANNELS;
         }
     }
 
@@ -167,7 +167,7 @@ enum bmp_error bmpWriteImage(const BitMap *bitmap, const char *path)
     {
         for (size_t w = 0; w < width; w++)
         {
-            tmpBuf[0] = tmpBuf[1] = tmpBuf[2] = bitmap->modified_img[r][w];
+            tmpBuf[0] = tmpBuf[1] = tmpBuf[2] = bitmap->modified_img[height - r - 1][w];
             if (fwrite((char *)tmpBuf, 1, COLOR_CHANNELS, fptr) != COLOR_CHANNELS)
             {
                 fclose(fptr);
