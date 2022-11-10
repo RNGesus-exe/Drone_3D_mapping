@@ -11,12 +11,6 @@ typedef struct
     int y;
 } Pair;
 
-init_pair(int _x, int _y, Pair &pair)
-{
-    pair.x = _x;
-    pair.y = _y;
-}
-
 typedef struct
 {
     Pair *data;
@@ -25,6 +19,8 @@ typedef struct
 } List;
 
 void init_list(List *);
+
+void init_pair(int _x, int _y, Pair *pair);
 
 void push(Pair, List *);
 

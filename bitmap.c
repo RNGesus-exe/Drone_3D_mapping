@@ -117,9 +117,10 @@ enum bmp_error bmpReadImage(BitMap *bitmap, const char *path)
     {
         for (unsigned int j = 0; j < width; j++)
         {
-            bitmap->modified_img[i][j] =
-                bitmap->grayscale_img[i][j] =
-                    sum_of_hist[(int)bitmap->grayscale_img[i][j]] * ((double)dm / area);
+            // bitmap->modified_img[i][j] =
+            //     bitmap->grayscale_img[i][j] =
+            //         sum_of_hist[(int)bitmap->grayscale_img[i][j]] * ((double)dm / area);
+            bitmap->modified_img[i][j] = bitmap->grayscale_img[i][j];
         }
     }
 

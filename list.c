@@ -10,6 +10,12 @@ void init_list(List *list)
     list->index = 0;
 }
 
+void init_pair(int _x, int _y, Pair *pair)
+{
+    pair->x = _x;
+    pair->y = _y;
+}
+
 /*
     Inserts element at last index
     @param value Value to be inserted
