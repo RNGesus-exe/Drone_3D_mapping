@@ -20,6 +20,8 @@ typedef struct
 
 void init_list(List *);
 
+void init_pair(int _x, int _y, Pair *pair);
+
 void push(Pair, List *);
 
 void print_pair(Pair);

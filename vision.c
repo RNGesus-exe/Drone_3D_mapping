@@ -20,7 +20,7 @@ enum error_msg applyEdgeDetection(EdgePoints *edgePoints, BitMap *image, int pat
     size_t height = image->header.biHeight;
     size_t width = image->header.biWidth;
     unsigned int areaToProcess = height - (patchSize * 2);
-    unsigned int interval = (areaToProcess / edgeLines);
+    unsigned int interval = 1;
     unsigned int curr_interval = patchSize;
     for (int edgeNo = 0; edgeNo < edgeLines; edgeNo++, curr_interval += interval)
     {
@@ -212,9 +212,17 @@ void drawBordersFromVec(BitMap *right_img, List *edges, int patchSize, bool colo
 {
     for (int i = 0; i < edges->index; i++)
     {
-        createBorder(right_img, edges->data[i].x - (patchSize / 2), edges->data[i].y - (patchSize / 2),
-                     edges->data[i].x + (patchSize / 2), edges->data[i].y + (patchSize / 2), color);
+        // createBorder(right_img, edges->data[i].x - (patchSize / 2), edges->data[i].y - (patchSize / 2),
+        //              edges->data[i].x + (patchSize / 2), edges->data[i].y + (patchSize / 2), color);
+        markEdge(right_img, edges->data[i]);
     }
+}
+
+enum error_msg markEdge(BitMap *image, Pair p)
+{
+    image->modified_img[p.x][p.y] = 255;
+    image->modified_img[p.x][p.y - 1] = 0;
+    image->modified_img[p.x][p.y + 1] = 0;
 }
 
 int myPow(int x)
@@ -229,6 +237,7 @@ int myAbs(int x)
 
 enum error_msg sobelTemplateMatching(EdgePoints *edges, BitMap *left_img, BitMap *right_img, int patchSize, int edgeLines)
 {
+
     size_t height = right_img->header.biHeight;
     size_t width = right_img->header.biWidth;
     unsigned int areaToProcess = height - (patchSize * 2);
@@ -236,11 +245,13 @@ enum error_msg sobelTemplateMatching(EdgePoints *edges, BitMap *left_img, BitMap
     unsigned int curr_interval = patchSize;
 
     int curr_ssd = 0;
-    int best_ssd = __INT32_MAX__;
+    int best_ssd = INT_MAX;
     Pair best_coord;
+    printf("Edgeline : %d\n", edgeLines);
 
     for (int edgeNo = 0; edgeNo < edgeLines; edgeNo++, curr_interval += interval)
     {
+        printf("Matching Edge on line %d\n", edgeNo);
 
         if ((patchSize % 2 == 0) || patchSize < 3)
         {
@@ -256,7 +267,7 @@ enum error_msg sobelTemplateMatching(EdgePoints *edges, BitMap *left_img, BitMap
 
         for (int match_no = 0; match_no < edges->leftEdgePoints[edgeNo].index; match_no++)
         {
-            best_ssd = __INT32_MAX__;
+            best_ssd = INT_MAX;
 
             for (int col = (patchSize - 1); col < (right_img->header.biWidth - (patchSize - 1)); col++)
             {
@@ -300,6 +311,7 @@ enum error_msg sobelTemplateMatching(EdgePoints *edges, BitMap *left_img, BitMap
                 push(best_coord, &edges->rightEdgePoints[edgeNo]);
             }
             else
+
             {
                 remove_at(match_no, &edges->leftEdgePoints[edgeNo]);
                 match_no--;
@@ -344,9 +356,9 @@ bool applySobelEdgeDetectionOnPatch(BitMap *right_img, int patchSize, int x1, in
 
         // 3) Define vertical and horizontal kernals
         const int sobelVerticalMask[3][3] = {
-            {1, 0, -1},
-            {2, 0, -2},
-            {1, 0, -1}};
+            {1, 2, 1},
+            {0, 0, 0},
+            {-1, -2, -1}};
 
         // 4) Apply Sobel Operation on the patch : S = sqrt( Gx^2 + Gy^2 ) {Gx: Horizontal Sobel, Gy: Vertical Sobel}
         for (int row = x1; row < (x2 + 1); row++)
@@ -427,6 +439,43 @@ bool applySobelEdgeDetectionOnPatch(BitMap *right_img, int patchSize, int x1, in
         fprintf(stderr, "Something wrong in {applySobelEdgeDetectionOnPatch}\n");
     }
     return hasEdge;
+}
+
+bool __convolute_mask(const int mask[3][3], BitMap *img, int r, int c)
+{
+    int sum = 0;
+    for (int col = 0; col < 3; col++)
+    {
+        for (int row = 0; row < 3; row++)
+        {
+            sum += ((int)img->modified_img[r][c] * mask[col][row]);
+        }
+    }
+    if (sum == 255)
+    {
+        printf("Outlier Found at (%d,%d)\n", r, c);
+        return true;
+    }
+    return false;
+}
+
+void denoise(BitMap *image)
+{
+    const int mask[3][3] = {
+        {0, 0, 0},
+        {0, 255, 0},
+        {0, 0, 0},
+    };
+    for (int row = 3; row < image->header.biHeight - 3; row++)
+    {
+        for (int col = 3; col < image->header.biWidth - 3; col++)
+        {
+            if (__convolute_mask(mask, image, row, col))
+            {
+                image->modified_img[row][col] = 0;
+            }
+        }
+    }
 }
 
 bool checkHistogram(BitMap *left_img, BitMap *right_img, int x1, int y1, int x2, int y2, int _x1, int _y1, int _x2, int _y2)
@@ -582,4 +631,63 @@ bool checkHistogram(BitMap *left_img, BitMap *right_img, int x1, int y1, int x2,
         fprintf(stderr, "The coordinates do not seem to be correct\n");
     }
     return false;
+}
+
+double maxDistanceInImage(EdgePoints *edges)
+{
+    double max = 0.000;
+    for (int edge_line = 0; edge_line < 10; edge_line++)
+    {
+        for (int edge_no = 0; edge_no < edges->rightEdgePoints[edge_line].index; edge_no++)
+        {
+            double distance = triangulateDistance(edges->leftEdgePoints[edge_line].data[edge_no], edges->rightEdgePoints[edge_line].data[edge_no]);
+            if (distance > max)
+            {
+                max = distance;
+            }
+        }
+    }
+    printf("max Distance : %f\n", max);
+    return max;
+}
+
+double triangulateDistance(Pair a, Pair b)
+{
+    const double BASELINE = 21.1;
+    const double CAM_CONSTANT = 2303.45;
+    return CAM_CONSTANT * (BASELINE / myAbs(a.y - b.y));
+}
+
+int linearInterpolate(Pair a, Pair b, int current_y)
+{
+    return (a.x + (current_y - a.y) * (b.x - a.x) / (b.y - a.y));
+}
+
+void interpolateImage(BitMap *right_img, EdgePoints *edges)
+{
+
+    double max_distance = maxDistanceInImage(edges);
+
+    // 1) Iterate over edgelines
+    for (int edge_line = 0; edge_line < 10; edge_line++)
+    {
+        printf("EdgeLine No : %d\t", edge_line);
+        // 2) Iterate over row
+        for (int edge_no = 0; edge_no < edges->rightEdgePoints[edge_line].index - 1; edge_no++)
+        {
+            // 3) Select 2 edges and interpolate between them
+            Pair a = edges->rightEdgePoints[edge_line].data[edge_no];
+            Pair b = edges->rightEdgePoints[edge_line].data[edge_no + 1];
+            for (int i = a.y; i < b.y; i++)
+            {
+                printf("%d", (int)(linearInterpolate(a, b, i) * (255 / max_distance)));
+                right_img->modified_img[a.x][i] = (int)(linearInterpolate(a, b, i) * (255 / max_distance));
+            }
+            printf("\n");
+        }
+    }
+}
+
+void extrapolateImage(BitMap *right_img, EdgePoints *edges)
+{
 }
