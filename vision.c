@@ -247,11 +247,12 @@ enum error_msg sobelTemplateMatching(EdgePoints *edges, BitMap *left_img, BitMap
     int curr_ssd = 0;
     int best_ssd = INT_MAX;
     Pair best_coord;
-    printf("Edgeline : %d\n", edgeLines);
+    // printf("Edgeline : %d\n", edgeLines);
+    int noOfEdges = 0;
 
     for (int edgeNo = 0; edgeNo < edgeLines; edgeNo++, curr_interval += interval)
     {
-        printf("Matching Edge on line %d\n", edgeNo);
+        // printf("Matching Edge on line %d\n", edgeNo);
 
         if ((patchSize % 2 == 0) || patchSize < 3)
         {
@@ -267,6 +268,7 @@ enum error_msg sobelTemplateMatching(EdgePoints *edges, BitMap *left_img, BitMap
 
         for (int match_no = 0; match_no < edges->leftEdgePoints[edgeNo].index; match_no++)
         {
+            noOfEdges = 0;
             best_ssd = INT_MAX;
 
             for (int col = (patchSize - 1); col < (right_img->header.biWidth - (patchSize - 1)); col++)
@@ -297,10 +299,10 @@ enum error_msg sobelTemplateMatching(EdgePoints *edges, BitMap *left_img, BitMap
                                                                     best_coord.y - (patchSize) / 2, best_coord.x + (patchSize) / 2,
                                                                     best_coord.y + (patchSize) / 2);
 
-            bool histogramMatches = checkHistogram(left_img, right_img, edges->leftEdgePoints[edgeNo].data[match_no].x - (patchSize / 2), edges->leftEdgePoints[edgeNo].data[match_no].y - (patchSize / 2), edges->leftEdgePoints[edgeNo].data[match_no].x + (patchSize / 2),
-                                                   edges->leftEdgePoints[edgeNo].data[match_no].y + (patchSize / 2), best_coord.x - (patchSize / 2), best_coord.y - (patchSize / 2), best_coord.x + (patchSize / 2), best_coord.y + (patchSize / 2));
+            // bool histogramMatches = checkHistogram(left_img, right_img, edges->leftEdgePoints[edgeNo].data[match_no].x - (patchSize / 2), edges->leftEdgePoints[edgeNo].data[match_no].y - (patchSize / 2), edges->leftEdgePoints[edgeNo].data[match_no].x + (patchSize / 2),
+            //                                        edges->leftEdgePoints[edgeNo].data[match_no].y + (patchSize / 2), best_coord.x - (patchSize / 2), best_coord.y - (patchSize / 2), best_coord.x + (patchSize / 2), best_coord.y + (patchSize / 2));
 
-            histogramMatches = true; // Remove later on
+            bool histogramMatches = true; // Remove later on
 
             // DROP THE USELESS EDGE POINTS
             if ((abs(best_coord.y - edges->leftEdgePoints[edgeNo].data[match_no].y) < right_img->header.biWidth / 2) && // Check Distance between points
@@ -308,10 +310,10 @@ enum error_msg sobelTemplateMatching(EdgePoints *edges, BitMap *left_img, BitMap
                 patchContainsEdge &&
                 histogramMatches)
             {
+
                 push(best_coord, &edges->rightEdgePoints[edgeNo]);
             }
             else
-
             {
                 remove_at(match_no, &edges->leftEdgePoints[edgeNo]);
                 match_no--;
@@ -633,10 +635,10 @@ bool checkHistogram(BitMap *left_img, BitMap *right_img, int x1, int y1, int x2,
     return false;
 }
 
-double maxDistanceInImage(EdgePoints *edges)
+double maxDistanceInImage(EdgePoints *edges, int edgelines)
 {
     double max = 0.000;
-    for (int edge_line = 0; edge_line < 10; edge_line++)
+    for (int edge_line = 0; edge_line < edgelines; edge_line++)
     {
         for (int edge_no = 0; edge_no < edges->rightEdgePoints[edge_line].index; edge_no++)
         {
@@ -647,7 +649,6 @@ double maxDistanceInImage(EdgePoints *edges)
             }
         }
     }
-    printf("max Distance : %f\n", max);
     return max;
 }
 
@@ -658,30 +659,37 @@ double triangulateDistance(Pair a, Pair b)
     return CAM_CONSTANT * (BASELINE / myAbs(a.y - b.y));
 }
 
-int linearInterpolate(Pair a, Pair b, int current_y)
+double linearInterpolate(double **dist, int a, int b, int r)
 {
-    return (a.x + (current_y - a.y) * (b.x - a.x) / (b.y - a.y));
+    int numOfPixels = myAbs(a - b);
+    int distance = myAbs(dist[r][a] - dist[r][b]);
+    printf("NumOfPixel : %d - DiffOfDistance : %d\n", numOfPixels, distance);
+
+    return (double) distance / numOfPixels;
 }
 
-void interpolateImage(BitMap *right_img, EdgePoints *edges)
+void interpolateImage(BitMap *right_img, double **distance, EdgePoints *edges, int edgelines)
 {
 
-    double max_distance = maxDistanceInImage(edges);
-
+    double max_distance = maxDistanceInImage(edges, edgelines);
+    printf("Max Distance : %f\n", max_distance);
     // 1) Iterate over edgelines
-    for (int edge_line = 0; edge_line < 10; edge_line++)
+    for (int edge_line = 0; edge_line < edgelines; edge_line++)
     {
-        printf("EdgeLine No : %d\t", edge_line);
-        // 2) Iterate over row
+        // 2) Iterate over col
+
         for (int edge_no = 0; edge_no < edges->rightEdgePoints[edge_line].index - 1; edge_no++)
         {
             // 3) Select 2 edges and interpolate between them
-            Pair a = edges->rightEdgePoints[edge_line].data[edge_no];
-            Pair b = edges->rightEdgePoints[edge_line].data[edge_no + 1];
-            for (int i = a.y; i < b.y; i++)
+            int a = edges->rightEdgePoints[edge_line].data[edge_no].y;
+            int b = edges->rightEdgePoints[edge_line].data[edge_no + 1].y;
+            int r = edges->rightEdgePoints[edge_line].data[edge_no].x;
+            int val = (int)(linearInterpolate(distance, a, b, r) * (255 / 300)); // TODO: Fix Max and replace 300 with max
+            printf("interpolated value : %d\n", val);
+            for (int i = a; i < b; i++)
             {
-                printf("%d", (int)(linearInterpolate(a, b, i) * (255 / max_distance)));
-                right_img->modified_img[a.x][i] = (int)(linearInterpolate(a, b, i) * (255 / max_distance));
+                right_img->modified_img[r][i] = val;
+                val *= (i + 1);
             }
             printf("\n");
         }
@@ -690,4 +698,20 @@ void interpolateImage(BitMap *right_img, EdgePoints *edges)
 
 void extrapolateImage(BitMap *right_img, EdgePoints *edges)
 {
+}
+
+void populateDistances(double **dist, int edgeLines, EdgePoints *edges)
+{
+
+    for (int j = 0; j < edgeLines; j++)
+    {
+        for (int i = 0; i < edges->rightEdgePoints[j].index; i++)
+        {
+            Pair b = edges->leftEdgePoints[j].data[i];
+            Pair a = edges->rightEdgePoints[j].data[i];
+            dist[j][i] = triangulateDistance(a, b);
+            // printf("Distance of (%d,%d) is %dcm\n", j, i, dist[i][j]);
+            printf("Distance at (%d,%d) is %fcm\n", a.y, a.x, dist[j][i]);
+        }
+    }
 }

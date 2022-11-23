@@ -61,7 +61,7 @@ enum bmp_error bmpReadImage(BitMap *bitmap, const char *path)
     if (bmpReadHeader(&bitmap->header, fptr) != BMP_OK)
     {
         fclose(fptr);
-        printf("\nThere was an issue reading the header...");
+        printf("\nThere was an issue reading the header of %s\n", path);
         return BMP_ERROR;
     }
 
