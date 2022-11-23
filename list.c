@@ -133,3 +133,16 @@ bool isInRange(int val, List *edges, int range)
     }
     return true;
 }
+
+/////////////////////////// ARRAY ADT  /////////////////////////////////////////////
+
+void _dealloc_dist(double **arr, int edgelines)
+{
+    if (arr == NULL)
+        return;
+    for (int i = 0; i < edgelines; i++)
+    {
+        free(arr[i]);
+    }
+    free(arr);
+}

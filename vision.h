@@ -76,25 +76,28 @@ bool checkHistogram(BitMap *left_img, BitMap *right_img, int x1, int y1, int x2,
 */
 void denoise(BitMap *image);
 
-double maxDistanceInImage(EdgePoints *edges);
+double maxDistanceInImage(EdgePoints *edges, int edgelines);
 
 /*
     Linearly interpolates between a & b
     @param current_y - X-Coordinate of point to interpolate
 */
-int linearInterpolate(Pair a, Pair b, int current_y);
+double linearInterpolate(double **dist, int a, int b, int r);
 /*
     Linearly extrapolate between a & b
     @param current_y - X-Coordinate of point to interpolate
 */
 int linearExtrapolate(Pair a, Pair b, int current_y);
 
+void populateDistances(double **dist, int edgeLines, EdgePoints *edges);
+
 /*
     Linearly interpolates points between edges
     @param right_img - Image from right camera
     @param edges - Edge Points
 */
-void interpolateImage(BitMap *right_img, EdgePoints *edges);
+
+void interpolateImage(BitMap *right_img, double **distance, EdgePoints *edges, int edgelines);
 
 void deallocateBuffers(BitMap *, BitMap *, EdgePoints *, int);
 

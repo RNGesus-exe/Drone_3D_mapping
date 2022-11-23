@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+/*
+    PAIR ARRAY ADT
+*/
 typedef struct
 {
     int x;
@@ -39,5 +42,20 @@ void dealloc_list(List *);
 void list_clear(List *);
 
 bool isInRange(int val, List *edges, int range);
+
+/*
+    1D-INT ARRAY ADT
+*/
+
+typedef struct
+{
+    int *data;
+    int size;
+    int index;
+} ArrayADT;
+
+void init_array(ArrayADT *array);
+
+void _dealloc_dist(double **arr, int edgelines);
 
 #endif
