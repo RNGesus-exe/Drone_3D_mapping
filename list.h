@@ -3,59 +3,58 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
+
+#define INIT_SIZE 10
 
 /*
     PAIR ARRAY ADT
+    By default the array is made of 10 size both in x and y dimension
 */
-typedef struct
-{
-    int x;
-    int y;
-} Pair;
 
-typedef struct
+typedef struct _data_
 {
-    Pair *data;
+    int left_y;
+    int right_y;
+    double distance;
+} Data;
+
+typedef struct _list_
+{
+    Data *data;
+    int row;
+    int size;
     int length;
-    int index;
 } List;
 
-void init_list(List *);
+typedef struct _2d_list_
+{
+    List *list;
+    int length;
+    int size;
+} MultiList;
 
-void init_pair(int _x, int _y, Pair *pair);
+//----- _list_ methods ------
 
-void push(Pair, List *);
+void init_list(List *); // PASSED
 
-void print_pair(Pair);
-
-Pair element_at(int, List *);
-
-void __shrink_list(List *);
+void insertAtEnd_list(Data, List *); // PASSED
 
 void remove_at(int, List *);
 
-void print_list(List *);
+void print_list(List *); // PASSED
 
-void dealloc_list(List *);
+//----- _2d_list_ methods ------
 
-void list_clear(List *);
+void init_multi_list(MultiList *); // PASSED
 
-bool isInRange(int val, List *edges, int range);
+void multi_list_remove(int, int, MultiList *); // PASSED
 
-/*
-    1D-INT ARRAY ADT
-*/
+void print_multi_list(MultiList *); // PASSED
 
-typedef struct
-{
-    int *data;
-    int size;
-    int index;
-} ArrayADT;
+void dealloc_multi_list(MultiList *); // PASSED
 
-void init_array(ArrayADT *array);
+int is_row_exist(MultiList *, int); // PASSED
 
-void _dealloc_dist(double **arr, int edgelines);
+void insert_multi_list(int, Data, MultiList *); // PASSED
 
 #endif

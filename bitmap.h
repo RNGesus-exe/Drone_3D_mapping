@@ -3,9 +3,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 #define BMP_MAGIC 19778
 #define COLOR_CHANNELS 3
+#define PI 3.141592654
 
 // The structure to hold the bmp contents
 

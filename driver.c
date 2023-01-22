@@ -57,7 +57,7 @@ int main()
     }
 
     populateDistances(dist, EDGE_LINES, &edges);
-    interpolateImage(&right, dist, &edges, EDGE_LINES);
+    // interpolateImage(&right, dist, &edges, EDGE_LINES);
 
     bmpWriteImage(&left, "imageA_w.bmp");
     bmpWriteImage(&right, "imageB_w.bmp");
