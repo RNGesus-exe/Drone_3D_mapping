@@ -27,8 +27,8 @@ enum bmp_error bmpReadHeader(BmpHeader *header, FILE *img_file)
 
 void bmpAllocateBuffer(BitMap *bitmap)
 {
-    const size_t height = bitmap->header.biHeight;
-    const size_t width = bitmap->header.biWidth;
+    const int height = bitmap->header.biHeight;
+    const int width = bitmap->header.biWidth;
 
     // Since we have moved the fptr ahead of the header in the bmp file, we can now just read the image data
 
@@ -40,7 +40,7 @@ void bmpAllocateBuffer(BitMap *bitmap)
     bitmap->modified_img = (unsigned char **)malloc(height * sizeof(unsigned char *));  // 2D
     bitmap->grayscale_img = (unsigned char **)malloc(height * sizeof(unsigned char *)); // 2D
 
-    for (size_t r = 0; r < height; r++)
+    for (int r = 0; r < height; r++)
     {
         // bitmap->original_img[0][r] = (unsigned char *)malloc(width * sizeof(unsigned char));
         // bitmap->original_img[1][r] = (unsigned char *)malloc(width * sizeof(unsigned char));
@@ -68,13 +68,18 @@ enum bmp_error bmpReadImage(BitMap *bitmap, const char *path)
     // 2) Allocate Buffers {this->modified_img ^ this->grayscale_img}
     bmpAllocateBuffer(bitmap);
 
-    const size_t height = bitmap->header.biHeight;
-    const size_t width = bitmap->header.biWidth;
+    const int height = bitmap->header.biHeight;
+    const int width = bitmap->header.biWidth;
+    int row_pad = 0;
+    if ((width * 3) % 4)
+    {
+        row_pad = 4 - ((width * 3) % 4);
+    }
     unsigned char tmpBuff[3];
 
-    for (size_t r = 0; r < height; r++)
+    for (int r = 0; r < height; r++)
     {
-        for (size_t w = 0; w < width; w++)
+        for (int w = 0; w < width; w++)
         {
             if (fread(tmpBuff, sizeof(tmpBuff), 1, fptr) != 1)
             {
@@ -82,11 +87,15 @@ enum bmp_error bmpReadImage(BitMap *bitmap, const char *path)
                 printf("\nThere was an error while reading the image...");
                 return BMP_ERROR;
             }
-            bitmap->grayscale_img[height - r - 1][w] = (tmpBuff[0] + tmpBuff[1] + tmpBuff[2]) / COLOR_CHANNELS;
+
+            bitmap->grayscale_img[height - r - 1][w] =
+                bitmap->modified_img[height - r - 1][w] =
+                    (double)(tmpBuff[0] + tmpBuff[1] + tmpBuff[2]) / COLOR_CHANNELS;
         }
+        fseek(fptr, row_pad, SEEK_CUR);
     }
 
-    // 3) Apply grayscale on image
+    // 3) Apply CDF on image
 
     unsigned int hist[256] = {0};
 
@@ -117,12 +126,42 @@ enum bmp_error bmpReadImage(BitMap *bitmap, const char *path)
     {
         for (unsigned int j = 0; j < width; j++)
         {
-            // bitmap->modified_img[i][j] =
-            //     bitmap->grayscale_img[i][j] =
-            //         sum_of_hist[(int)bitmap->grayscale_img[i][j]] * ((double)dm / area);
-            bitmap->modified_img[i][j] = bitmap->grayscale_img[i][j];
+            bitmap->modified_img[i][j] =
+                bitmap->grayscale_img[i][j] =
+                    sum_of_hist[(int)bitmap->grayscale_img[i][j]] * ((double)dm / area);
+            // bitmap->modified_img[i][j] = bitmap->grayscale_img[i][j];
         }
     }
+
+    // 4) Apply Gaussian Filter for sigma = 1
+    // const double sigma = 1;
+    // const double normal = (double)1 / (2.0 * PI * sigma * sigma);
+    // const int k = 2;
+
+    // double gaussian_kernel[5][5];
+    // for (int i = 1; i < 6; i++)
+    // {
+    //     for (int j = 1; j < 6; j++)
+    //     {
+    //         gaussian_kernel[i - 1][j - 1] = exp(-1 * (((i - (k + 1)) * (i - (k + 1))) + ((j - (k + 1)) * (j - (k + 1)))) / (2.0 * sigma * sigma)) * normal;
+    //     }
+    // }
+
+    // for (int r = 2; r < height - 2; r++)
+    // {
+    //     for (int w = 2; w < width - 2; w++)
+    //     {
+    //         int sum = 0;
+    //         for (int i = 0; i < 5; i++)
+    //         {
+    //             for (int j = 0; j < 5; j++)
+    //             {
+    //                 sum += (double)bitmap->grayscale_img[(r - 2 + i)][(w - 2 + j)] * gaussian_kernel[i][j];
+    //             }
+    //         }
+    //         bitmap->modified_img[r][w] = bitmap->grayscale_img[r][w] = sum;
+    //     }
+    // }
 
     // 4) Close the file
     fflush(fptr);
@@ -164,6 +203,13 @@ enum bmp_error bmpWriteImage(const BitMap *bitmap, const char *path)
     const size_t width = bitmap->header.biWidth;
     unsigned char tmpBuf[3];
 
+    int row_pad = 0;
+    if ((width * 3) % 4)
+    {
+        row_pad = 4 - ((width * 3) % 4);
+    }
+
+    char pad[3] = {0, 0, 0};
     for (size_t r = 0; r < height; r++)
     {
         for (size_t w = 0; w < width; w++)
@@ -176,6 +222,7 @@ enum bmp_error bmpWriteImage(const BitMap *bitmap, const char *path)
                 return BMP_ERROR;
             }
         }
+        fwrite(pad, 1, row_pad, fptr);
     }
 
     fflush(fptr);
