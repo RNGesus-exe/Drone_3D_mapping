@@ -1,7 +1,5 @@
 #include "vision.h"
 
-#define POINTS 16
-
 void init(MultiList *mList,
           const char *leftImagePathIn, BitMap *leftImage,
           const char *rightImagePathIn, BitMap *rightImage)
@@ -18,8 +16,113 @@ void clean_up(MultiList *mList, BitMap *left_img, BitMap *right_img)
     bmpDeallocateBuffer(right_img);
 }
 
-void rotate_image(BitMap *img, float angle)
+void rotate_image(BitMap *img, double theta)
 {
+    int height = img->header.biHeight;
+    int width = img->header.biWidth;
+    //=========================CREATE NEW IMAGE BUFFER
+    int **rotated_image = (int **)malloc(height * sizeof(int *));
+    for (int i = 0; i < height; ++i)
+    {
+        rotated_image[i] = (int *)malloc(width * sizeof(int));
+    }
+    //====================STORE ROTATION IN NEW IMAGE BUFFER
+    theta = 1.0 * theta * (PI / 180); // convert from degree to radian
+    double new_col;
+    double new_row;
+    int row_mid = height / 2;
+    int col_mid = width / 2;
+    for (int row = 0; row < height; ++row)
+    {
+        for (int col = 0; col < width; ++col)
+        {
+            // Rotation
+            new_row = (row * cos(theta)) - (col * sin(theta)) + (row_mid * (1 - cos(theta)) + (col_mid * sin(theta)));
+            new_col = (row * sin(theta)) + (col * cos(theta)) + (col_mid * (1 - cos(theta))) - (row_mid * sin(theta));
+            // printf("row = %d, col = %d, new_row = %d, new_col = %d\n", row, col, (int)new_row, (int)new_col);
+            if ((int)round(new_row) >= 0 && (int)round(new_row) < height &&
+                (int)round(new_col) >= 0 && (int)round(new_col) < width)
+            {
+                rotated_image[(int)round(new_row)][(int)(new_col)] = (int)img->grayscale_img[row][col];
+            }
+        }
+    }
+
+    //========================================EMPTY THE ORIGINAL IMAGE
+
+    for (int row = 0; row < height; ++row)
+    {
+        for (int col = 0; col < width; ++col)
+        {
+            img->modified_img[row][col] = img->grayscale_img[row][col] = 0;
+        }
+    }
+
+    //===========================================COPY ROTATED IMAGE FROM NEW BUFFER TO OLD BUFFER
+
+    for (int row = 0; row < height; ++row)
+    {
+        for (int col = 0; col < width; ++col)
+        {
+            img->modified_img[row][col] =
+                img->grayscale_img[row][col] = rotated_image[row][col];
+        }
+    }
+    //============================================DEALLOCATE NEW BUFFER
+
+    if (rotated_image)
+    {
+        for (int i = 0; i < height; ++i)
+        {
+            free(rotated_image[i]);
+        }
+        free(rotated_image);
+        rotated_image = NULL;
+    }
+}
+
+void apply_nearest_neighbour_filling(BitMap *image, int x1, int x2, int y1, int y2)
+{
+    int height = image->header.biHeight;
+    int width = image->header.biWidth;
+    int avg = 0;
+    if (x1 < 0 || y1 < 0 || x2 >= height || y2 >= width)
+    {
+        perror("NEAREST NEIGHBOUR BOUNDARY ISSUE...");
+        return;
+    }
+    for (int i = x1; i < x2; i++)
+    {
+        for (int j = y1; j < y2; j++)
+        {
+            if ((int)image->grayscale_img[i][j] == 0)
+            {
+                // calculate average of eight neighbors
+                avg = (int)image->grayscale_img[i - 1][j - 1] +
+                      (int)image->grayscale_img[i - 1][j] +
+                      (int)image->grayscale_img[i - 1][j + 1] +
+                      (int)image->grayscale_img[i][j - 1] +
+                      (int)image->grayscale_img[i][j + 1] +
+                      (int)image->grayscale_img[i + 1][j - 1] +
+                      (int)image->grayscale_img[i + 1][j] +
+                      (int)image->grayscale_img[i + 1][j + 1];
+                avg /= 8;
+
+                image->modified_img[i][j] = image->grayscale_img[i][j] = avg;
+            }
+        }
+    }
+
+    for (int i = 0; i < height; i++)
+    {
+        for (int j = 0; j < width; j++)
+        {
+            if (((i < x1 || i >= x2) || (j < y1 || j >= y2)) && ((int)image->grayscale_img[i][j] == 0))
+            {
+                image->modified_img[i][j] = image->grayscale_img[i][j] = 170;
+            }
+        }
+    }
 }
 
 int check_if_possible_corner(int curr, int T, int i_1, int i_5, int i_9, int i_13)
@@ -138,6 +241,7 @@ void fast_feature_detection(int ***fast_map, BitMap *image, int threshold, int n
     int height = image->header.biHeight;
     int width = image->header.biWidth;
     const int RAD = 3;
+    const int POINTS = 16;
     const int T = threshold;
 
     int i_1, i_5, i_9, i_13;
@@ -263,6 +367,10 @@ void apply_non_maxima_suppression(int ***fast_map, int height, int width, int ma
     {
         for (int col = PADDING_FACTOR; col < width + PADDING_FACTOR; col++)
         {
+            if (padded_img[row][col] == 0)
+            {
+                continue;
+            }
             middleVal = padded_img[row][col];
             flag = 1;
 
@@ -270,7 +378,7 @@ void apply_non_maxima_suppression(int ***fast_map, int height, int width, int ma
             {
                 for (int j = 0; j < maskSize; j++)
                 {
-                    if (padded_img[row - maskSize / 2 + i][col - maskSize / 2 + j] > middleVal)
+                    if (i != j && padded_img[(row - maskSize / 2) + i][(col - maskSize / 2) + j] > middleVal)
                     {
                         (*fast_map)[row - PADDING_FACTOR][col - PADDING_FACTOR] = 0;
                         flag = 0;

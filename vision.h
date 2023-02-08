@@ -46,7 +46,9 @@ void remove_outliers(MultiList *);
 
 void find_min_max(MultiList *, int *, int *);
 
-void rotate_image(BitMap *, float);
+void rotate_image(BitMap *, double);
+
+void apply_nearest_neighbour_filling(BitMap *, int, int, int, int);
 
 void fast_feature_detection(int ***, BitMap *, int, int, int);
 
