@@ -1,0 +1,39 @@
+void testList()
+{
+    MultiList mlist;
+    Data tmp;
+    init_multi_list(&mlist);
+    int n = 1;
+    int row = 0;
+    scanf("%d", &row);
+    int i = 0;
+    while (1)
+    {
+        scanf("%d", &n);
+
+        if (n == 0)
+        {
+            i++;
+            scanf("%d", &row);
+            if (row == -1)
+            {
+                break;
+            }
+        }
+        else
+        {
+            tmp.distance = n;
+            tmp.left_y = -1;
+            tmp.right_y = -1;
+            printf("row # %d , val # %d\n", row, tmp.distance);
+            insert_multi_list(row, tmp, &mlist);
+        }
+    }
+
+    // multi_list_remove(1, 1, &mlist);
+
+    printf("Length of mList = %d, Size of mList = %d\n", mlist.length, mlist.size);
+    printf("\n------------------------------\n");
+    print_multi_list(&mlist);
+    dealloc_multi_list(&mlist);
+}

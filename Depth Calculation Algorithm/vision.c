@@ -221,22 +221,22 @@ int check_if_corner(int curr, int T, int *arr, int size, int flag, int n)
     return 0;
 }
 
-void move_fast_to_image(int ***fast_map, BitMap *image, int patchSize)
+void move_fast_to_image(int ***fast_map, BitMap *image, int padding)
 {
     int height = image->header.biHeight;
     int width = image->header.biWidth;
 
-    for (int row = (patchSize + PADDING); row < height - (patchSize + PADDING); row++)
+    for (int row = padding; row < height - padding; row++)
     {
-        for (int col = (patchSize + PADDING); col < width - (patchSize + PADDING); col++)
+        for (int col = padding; col < width - padding; col++)
         {
             image->modified_img[row][col] =
-                (*fast_map)[row - (patchSize + PADDING)][col - (patchSize + PADDING)];
+                (*fast_map)[row - padding][col - padding];
         }
     }
 }
 
-void fast_feature_detection(int ***fast_map, BitMap *image, int threshold, int n, int patchSize)
+void fast_feature_detection(int ***fast_map, BitMap *image, int threshold, int n, int padding)
 {
     int height = image->header.biHeight;
     int width = image->header.biWidth;
@@ -248,9 +248,9 @@ void fast_feature_detection(int ***fast_map, BitMap *image, int threshold, int n
     int curr_i;
     int is_corner;
 
-    for (int row = (patchSize + PADDING); row < height - (patchSize + PADDING); row++)
+    for (int row = padding; row < height - padding; row++)
     {
-        for (int col = (patchSize + PADDING); col < width - (patchSize + PADDING); col++)
+        for (int col = padding; col < width - padding; col++)
         {
             // check if any 3 pixels fill
             curr_i = (int)image->grayscale_img[row][col];
@@ -262,7 +262,7 @@ void fast_feature_detection(int ***fast_map, BitMap *image, int threshold, int n
             // if any 3 of these are brighter or darker than curr pixel than we can perform further analysis
             is_corner = check_if_possible_corner(curr_i, T, i_1, i_5, i_9, i_13);
 
-            if (is_corner != 0)
+            if (is_corner)
             {
                 // Now check if any n cells are brighter or darker than the curr pixel
                 int arr[POINTS];
@@ -290,11 +290,12 @@ void fast_feature_detection(int ***fast_map, BitMap *image, int threshold, int n
 
             if (is_corner != 0)
             {
-                (*fast_map)[row - (patchSize + PADDING)][col - (patchSize + PADDING)] = is_corner;
+
+                (*fast_map)[row - padding][col - padding] = is_corner;
             }
             else
             {
-                (*fast_map)[row - (patchSize + PADDING)][col - (patchSize + PADDING)] = 0;
+                (*fast_map)[row - padding][col - padding] = 0;
             }
         }
     }
@@ -409,7 +410,7 @@ void apply_non_maxima_suppression(int ***fast_map, int height, int width, int ma
     }
 }
 
-enum error_msg applyEdgeDetection(MultiList *mList, BitMap *image, int patchSize)
+enum error_msg applyEdgeDetection(BitMap *image, int padding)
 {
     int height = image->header.biHeight;
     int width = image->header.biWidth;
@@ -424,24 +425,13 @@ enum error_msg applyEdgeDetection(MultiList *mList, BitMap *image, int patchSize
         {-2, 0, 2},
         {-1, 0, 1}};
 
-    // int inner_height = height - 2 * (patchSize + PADDING);
-    // int inner_width = width - 2 * (patchSize + PADDING);
-    // double **gradient_dir = (double **)malloc(inner_height * sizeof(double *));
-    // unsigned char **non_maxima_supp = (unsigned char **)malloc(inner_height * sizeof(unsigned char *));
-
-    // for (int i = 0; i < inner_height; i++)
-    // {
-    //     gradient_dir[i] = (double *)malloc(inner_width * sizeof(double));
-    //     non_maxima_supp[i] = (unsigned char *)malloc(inner_width * sizeof(unsigned char));
-    // }
-
     // 2) Apply Sobel edge detection and calculate gradient direction
-    for (int edgeNo = (patchSize + PADDING); edgeNo < (height - (patchSize + PADDING)); edgeNo++)
+    for (int edgeNo = padding; edgeNo < height - padding; edgeNo++)
     {
         int Gy = 0;
         int Gx = 0;
 
-        for (int w = (patchSize + PADDING); w < (width - (patchSize + PADDING)); w++)
+        for (int w = padding; w < width - padding; w++)
         {
             Gy = 0;
             Gx = 0;
@@ -455,16 +445,15 @@ enum error_msg applyEdgeDetection(MultiList *mList, BitMap *image, int patchSize
                 }
             }
 
-            // gradient_dir[edgeNo - (patchSize + PADDING)][w - (patchSize + PADDING)] = (atan2(Gy, Gx) * 180.0 / PI) + 180;
             image->modified_img[edgeNo][w] = sqrt(Gy * Gy + Gx * Gx);
         }
     }
 
     // 2.5) Fix sobel, this doesn't work for canny
 
-    for (int edgeNo = (patchSize + PADDING); edgeNo < (height - (patchSize + PADDING)); edgeNo++)
+    for (int edgeNo = padding; edgeNo < height - padding; edgeNo++)
     {
-        for (int w = (patchSize + PADDING); w < (width - (patchSize + PADDING)); w++)
+        for (int w = padding; w < width - padding; w++)
         {
 
             if (image->modified_img[edgeNo][w] > 125)
@@ -477,280 +466,110 @@ enum error_msg applyEdgeDetection(MultiList *mList, BitMap *image, int patchSize
             }
         }
     }
-
-    // 3) Apply non maxima suppression
-
-    // int q, r;
-    // double gradient_val;
-    // for (int edgeNo = (patchSize + PADDING); edgeNo < (height - (patchSize + PADDING)); edgeNo++)
-    // {
-    //     for (int w = (patchSize + PADDING); w < (width - (patchSize + PADDING)); w++)
-    //     {
-    //         q = 255;
-    //         r = 255;
-    //         gradient_val = gradient_dir[edgeNo - (patchSize + PADDING)][w - (patchSize + PADDING)];
-
-    //         // angles
-    //         if ((0 <= gradient_val && gradient_val < 22.5) ||
-    //             (157.5 <= gradient_val && gradient_val <= 180))
-    //         {
-    //             q = image->modified_img[edgeNo][w + 1];
-    //             r = image->modified_img[edgeNo][w - 1];
-    //         }
-    //         else if (22.5 <= gradient_val && gradient_val < 67.5)
-    //         {
-    //             q = image->modified_img[edgeNo + 1][w - 1];
-    //             r = image->modified_img[edgeNo - 1][w + 1];
-    //         }
-    //         else if (67.5 <= gradient_val && gradient_val < 112.5)
-    //         {
-    //             q = image->modified_img[edgeNo + 1][w];
-    //             r = image->modified_img[edgeNo - 1][w];
-    //         }
-    //         else if (112.5 <= gradient_val && gradient_val < 157.5)
-    //         {
-    //             q = image->modified_img[edgeNo - 1][w - 1];
-    //             r = image->modified_img[edgeNo + 1][w + 1];
-    //         }
-
-    //         if (image->modified_img[edgeNo][w] >= q && image->modified_img[edgeNo][w] >= r)
-    //         {
-    //             non_maxima_supp[edgeNo - (patchSize + PADDING)][w - (patchSize + PADDING)] = image->modified_img[edgeNo][w];
-    //         }
-    //         else
-    //         {
-    //             non_maxima_supp[edgeNo - (patchSize + PADDING)][w - (patchSize + PADDING)] = 0;
-    //         }
-    //     }
-    // }
-
-    // for (int edgeNo = (patchSize + PADDING); edgeNo < (height - (patchSize + PADDING)); edgeNo++)
-    // {
-    //     for (int w = (patchSize + PADDING); w < (width - (patchSize + PADDING)); w++)
-    //     {
-    //         image->modified_img[edgeNo][w] = non_maxima_supp[edgeNo - (patchSize + PADDING)][w - (patchSize + PADDING)];
-    //     }
-    // }
-
-    // // 4) DOUBLE THRESHOLD
-
-    // double highThreshold = 0.15;
-    // double lowThreshold = 0.09;
-
-    // int max_val = INT_MIN;
-    // for (int edgeNo = (patchSize + PADDING); edgeNo < (height - (patchSize + PADDING)); edgeNo++)
-    // {
-    //     for (int w = (patchSize + PADDING); w < (width - (patchSize + PADDING)); w++)
-    //     {
-    //         image->modified_img[edgeNo][w] = non_maxima_supp[edgeNo - (patchSize + PADDING)][w - (patchSize + PADDING)];
-    //         if (max_val < (int)image->modified_img[edgeNo][w])
-    //         {
-    //             max_val = (int)image->modified_img[edgeNo][w];
-    //         }
-    //     }
-    // }
-
-    // printf("Max Value = %d\n", max_val);
-
-    // highThreshold *= max_val;
-    // lowThreshold *= highThreshold;
-
-    // highThreshold = 40;
-    // lowThreshold = 25;
-
-    // unsigned char **res = (unsigned char **)malloc(inner_height * sizeof(unsigned char *));
-    // for (int i = 0; i < inner_height; i++)
-    // {
-    //     res[i] = (unsigned char *)malloc(inner_width * sizeof(unsigned char));
-    // }
-
-    // int strong = 255;
-    // int weak = 50;
-    // int zero = 0;
-
-    // for (int edgeNo = (patchSize + PADDING); edgeNo < (height - (patchSize + PADDING)); edgeNo++)
-    // {
-    //     for (int w = (patchSize + PADDING); w < (width - (patchSize + PADDING)); w++)
-    //     {
-    //         if ((int)image->modified_img[edgeNo][w] >= highThreshold)
-    //         {
-    //             res[edgeNo - (patchSize + PADDING)][w - (patchSize + PADDING)] = strong;
-    //         }
-    //         else if ((int)image->modified_img[edgeNo][w] < lowThreshold)
-    //         {
-    //             res[edgeNo - (patchSize + PADDING)][w - (patchSize + PADDING)] = zero;
-    //         }
-    //         else
-    //         {
-    //             res[edgeNo - (patchSize + PADDING)][w - (patchSize + PADDING)] = weak;
-    //         }
-    //     }
-    // }
-
-    // for (int edgeNo = (patchSize + PADDING); edgeNo < (height - (patchSize + PADDING)); edgeNo++)
-    // {
-    //     for (int w = (patchSize + PADDING); w < (width - (patchSize + PADDING)); w++)
-    //     {
-    //         image->modified_img[edgeNo][w] = res[edgeNo - (patchSize + PADDING)][w - (patchSize + PADDING)];
-    //     }
-    // }
-
-    // // 5) Hysteresis Threshold
-
-    // for (int edgeNo = (patchSize + PADDING) + 1; edgeNo < (height - (patchSize + PADDING)) - 1; edgeNo++)
-    // {
-    //     for (int w = (patchSize + PADDING) + 1; w < (width - (patchSize + PADDING)) - 1; w++)
-    //     {
-    //         if (image->modified_img[edgeNo][w] == weak)
-    //         {
-    //             if ((image->modified_img[edgeNo + 1][w - 1] == strong) ||
-    //                 (image->modified_img[edgeNo + 1][w] == strong) ||
-    //                 (image->modified_img[edgeNo + 1][w + 1] == strong) ||
-    //                 (image->modified_img[edgeNo][w - 1] == strong) ||
-    //                 (image->modified_img[edgeNo][w + 1] == strong) ||
-    //                 (image->modified_img[edgeNo - 1][w - 1] == strong) ||
-    //                 (image->modified_img[edgeNo - 1][w] == strong) ||
-    //                 (image->modified_img[edgeNo - 1][w + 1] == strong))
-    //             {
-    //                 image->modified_img[edgeNo][w] = strong;
-    //             }
-    //             else
-    //             {
-    //                 image->modified_img[edgeNo][w] = zero;
-    //             }
-    //         }
-    //     }
-    // }
-
-    // 6) Deallocation of buffers
-    // if (gradient_dir != NULL)
-    // {
-    //     for (size_t h = 0; h < inner_height; h++)
-    //     {
-    //         free(gradient_dir[h]);
-    //     }
-    //     free(gradient_dir);
-    //     gradient_dir = NULL;
-    // }
-
-    // if (res != NULL)
-    // {
-    //     for (size_t h = 0; h < inner_height; h++)
-    //     {
-    //         free(res[h]);
-    //     }
-    //     free(res);
-    //     res = NULL;
-    // }
-
-    // if (non_maxima_supp != NULL)
-    // {
-    //     for (size_t h = 0; h < inner_height; h++)
-    //     {
-    //         free(non_maxima_supp[h]);
-    //     }
-    //     free(non_maxima_supp);
-    //     non_maxima_supp = NULL;
-    // }
-
     return ALL_OK;
 }
 
-void storePointsInMultiList(BitMap *image, MultiList *mList, int patchSize)
+enum error_msg TemplateMatching(BitMap *left_img, BitMap *right_img, int padding, int patchSize, double ***distances)
 {
-    // 4) Store the edge points in the list
-    size_t height = image->header.biHeight;
-    size_t width = image->header.biWidth;
+    // Row Based template Matching
 
-    Data data;
-    for (int edgeNo = (patchSize + PADDING); edgeNo < (height - (patchSize + PADDING)); edgeNo++)
+    if ((patchSize % 2 == 0) || patchSize < 3)
     {
-        for (int w = (patchSize + PADDING); w < (width - (patchSize + PADDING)); w++)
-        {
-            if (image->modified_img[edgeNo][w])
-            {
-                data.left_y = w;
-                data.right_y = -1;
-                data.distance = -1;
-                insert_multi_list(edgeNo, data, mList);
-            }
-        }
+        printf("Incorrect Patch Size\n");
+        return PATCH_SIZE_INCORRECT;
     }
-}
 
-enum error_msg TemplateMatching(MultiList *mList, BitMap *left_img, BitMap *right_img, int patchSize)
-{
     size_t height = right_img->header.biHeight;
     size_t width = right_img->header.biWidth;
 
-    int count = 0;
-    int curr_ssd = 0;
-    double error = 0.02;
-    int max_ssd = patchSize * patchSize * 255 * 255;
+    const double BASELINE = 44;     // 4.4 cm
+    const double FOCAL_LENGTH = 4;  // 4m,
+    const double PIXEL_SIZE = 6.35; // 0.25 inch
+
+    const int ROW_RANGE = 3;
     int best_ssd = INT_MAX;
-    int best_y = -1;
-    int noOfEdges = 0;
-    int iterations = 0;
+    int curr_ssd = 0;
+    int best_x = 0, best_y = 0;
+    const double ERROR = 0.02;
+    const int MAX_SSD = patchSize * patchSize * 255 * 255;
 
-    for (int edgeNo = 0; edgeNo < mList->length; edgeNo++)
+    int matches_found = 0;
+    int total_matches = 0;
+
+    // Take a template from left image and compare with right image
+    for (int r1 = padding; r1 < height - padding; r1++)
     {
-        if ((patchSize % 2 == 0) || patchSize < 3)
+        for (int c1 = padding; c1 < width - padding; c1++)
         {
-            printf("Incorrect Patch Size\n");
-            return PATCH_SIZE_INCORRECT;
-        }
-
-        for (int match_no = 0; match_no < mList->list[edgeNo].length; match_no++)
-        {
+            // printf("r = %d, c= %d\n", r1, c1);
             best_ssd = INT_MAX;
-
-            for (int col = (patchSize + PADDING); col < (width - (patchSize + PADDING)); col++)
+            if (left_img->modified_img[r1][c1])
             {
-
-                curr_ssd = 0;
-                for (int r = 0; r < patchSize; r++)
+                total_matches++;
+                // As we are searching within the same row, we won't iterate over the entire image
+                for (int r2 = r1 - ROW_RANGE; r2 < r1 + ROW_RANGE; r2++)
                 {
-                    for (int w = 0; w < patchSize; w++)
+                    for (int c2 = padding; c2 < width - padding; c2++)
                     {
-                        curr_ssd += myAbs(left_img->grayscale_img[(mList->list[edgeNo].row - patchSize / 2) + r]
-                                                                 [(mList->list[edgeNo].data[match_no].left_y - patchSize / 2) + w] -
-                                          right_img->grayscale_img[(mList->list[edgeNo].row - patchSize / 2) + r]
-                                                                  [(col - patchSize / 2) + w]);
-                        // TURN THIS OFF WHEN RUNNING ON CLOUD
-                        right_img->modified_img[(mList->list[edgeNo].row - patchSize / 2) + r][(col - patchSize / 2) + w] = 0;
+                        // Calculate SAD
+                        if (right_img->modified_img[r2][c2])
+                        {
+                            curr_ssd = 0;
+                            for (int x = 0; x < patchSize; x++)
+                            {
+                                for (int y = 0; y < patchSize; y++)
+                                {
+                                    curr_ssd += myAbs(left_img->grayscale_img[r1][c1] - right_img->grayscale_img[r2][c2]);
+                                }
+                            }
+
+                            if (curr_ssd < best_ssd)
+                            {
+                                // We need to replace the old right_image[r2][c2] with NULL
+                                // right_img->modified_img[best_x][best_y] = 0;
+
+                                best_ssd = curr_ssd;
+                                best_x = r2;
+                                best_y = c2;
+                            }
+                        }
                     }
                 }
 
-                // Compare current ssd with best ssd
-                if (curr_ssd < best_ssd)
+                if (!((myAbs(c1 - best_y) < (width / 2)) && (best_ssd < MAX_SSD * ERROR)))
                 {
-                    best_ssd = curr_ssd;
-                    best_y = col;
+                    // If this body executes than the current point is not a good match
+                    left_img->modified_img[r1][c1] = 0;
+                }
+                else
+                {
+                    matches_found++;
+
+                    double dist;
+                    int count = 0;
+                    int drops = 0;
+                    dist = FOCAL_LENGTH / PIXEL_SIZE * BASELINE / (double)myAbs(c1 - best_y);
+                    // if (dist >= 300 && dist <= 600) // set a criteria for adding distances
+                    // {
+                    //     count++;
+                    //     mList->list[i].data[j].distance = dis;
+                    // }
+                    // else
+                    // {
+                    //     remove_at(j, &mList->list[i]);
+                    //     j--;
+                    //     drops++;
+                    // }
+                    // printf("Distances inserted = %d\n Distances Dropped = %d\n", count, drops);
+
+                    (*distances)[r1][c1] = dist;
+                    // printf("Distance = %f\n", dist);
                 }
             }
-            // printf("left_y = %d, right_y = %d, row = %d , score = %d, viable_error = %d, width = %ld, distance = %d\n", mList->list[edgeNo].data[match_no].left_y, best_y, mList->list[edgeNo].row, best_ssd, (int)(max_ssd * error), (width / 2), myAbs(best_y - mList->list[edgeNo].data[match_no].left_y));
-            // right_img->modified_img[mList->list[edgeNo].row][best_y] = 0;
-
-            // DROP THE USELESS EDGE POINTS
-            if ((myAbs(best_y - mList->list[edgeNo].data[match_no].left_y) < (width / 2)) &&
-                (best_ssd < max_ssd * error))
-            {
-                noOfEdges++;
-                mList->list[edgeNo].data[match_no].right_y = best_y;
-            }
-            else
-            {
-                count++;
-                remove_at(match_no, &mList->list[edgeNo]);
-                match_no--;
-            }
-            iterations++;
         }
     }
-    // REMOVE
-    markPointsFromLists(right_img, mList);
-    printf("Total edges were = %d,\nAmount of edges which got matched = %d\n", iterations, noOfEdges);
-    printf("Amount of edges removed = %d\n", count);
+
+    printf("TOTAL MATCHES FOUND %d out of %d\n", matches_found, total_matches);
     return ALL_OK;
 }
 
@@ -764,30 +583,19 @@ int myAbs(int x)
     return (x < 0) ? -1 * x : x;
 }
 
-void markPointsFromLists(BitMap *img, MultiList *mList)
-{
-    for (int i = 0; i < mList->length; i++)
-    {
-        for (int j = 0; j < mList->list[i].length; j++)
-        {
-            img->modified_img[mList->list[i].row][mList->list[i].data[j].right_y] = 255;
-        }
-    }
-}
-
-void merge_fast_edge_detection(int ***fast_map, BitMap *image, int patchSize)
+void merge_fast_edge_detection(int ***fast_map, BitMap *image, int padding)
 {
     int height = image->header.biHeight;
     int width = image->header.biWidth;
 
-    for (int row = (patchSize + PADDING); row < height - (patchSize + PADDING); row++)
+    for (int row = padding; row < height - padding; row++)
     {
-        for (int col = (patchSize + PADDING); col < width - (patchSize + PADDING); col++)
+        for (int col = padding; col < width - padding; col++)
         {
-            if (((*fast_map)[row - (patchSize + PADDING)][col - (patchSize + PADDING)] != 0) &&
+            if (((*fast_map)[row - padding][col - padding] != 0) &&
                 (image->modified_img[row][col] == 255))
             {
-                image->modified_img[row][col] = (*fast_map)[row - (patchSize + PADDING)][col - (patchSize + PADDING)];
+                image->modified_img[row][col] = (*fast_map)[row - padding][col - padding];
             }
             else
             {
@@ -822,34 +630,35 @@ void interpolateImage(BitMap *right_img, MultiList *mList, int max_val, int min_
     }
 }
 
-void calculateDistances(MultiList *mList)
-{
-    const double BASELINE = 21.1;
-    const double CAM_CONSTANT = 2303.45;
-    double dis;
-    int count = 0;
-    int drops = 0;
-    for (int i = 0; i < mList->length; i++)
-    {
-        // printf("Row = %d, Length = %d\n", mList->list[i].row, mList->list[i].length);
-        for (int j = 0; j < mList->list[i].length; j++)
-        {
-            dis = CAM_CONSTANT * BASELINE / myAbs(mList->list[i].data[j].left_y - mList->list[i].data[j].right_y);
-            if (dis >= 300 && dis <= 600) // set a criteria for adding distances
-            {
-                count++;
-                mList->list[i].data[j].distance = dis;
-            }
-            else
-            {
-                remove_at(j, &mList->list[i]);
-                j--;
-                drops++;
-            }
-        }
-    }
-    printf("Distances inserted = %d\n Distances Dropped = %d\n", count, drops);
-}
+// void calculateDistances(int ***distances, BitMap *left)
+// {
+//     const double BASELINE = 44;     // 4.4 cm
+//     const double FOCAL_LENGTH = 4;  // 4m,
+//     const double PIXEL_SIZE = 6.35; // 0.25 inch
+//     double dist;
+//     int count = 0;
+//     int drops = 0;
+//     for (int i = 0; i < mList->length; i++)
+//     {
+//         // printf("Row = %d, Length = %d\n", mList->list[i].row, mList->list[i].length);
+//         for (int j = 0; j < mList->list[i].length; j++)
+//         {
+//             dist = CAM_CONSTANT * BASELINE / myAbs(mList->list[i].data[j].left_y - mList->list[i].data[j].right_y);
+//             if (dis >= 300 && dis <= 600) // set a criteria for adding distances
+//             {
+//                 count++;
+//                 mList->list[i].data[j].distance = dis;
+//             }
+//             else
+//             {
+//                 remove_at(j, &mList->list[i]);
+//                 j--;
+//                 drops++;
+//             }
+//         }
+//     }
+//     printf("Distances inserted = %d\n Distances Dropped = %d\n", count, drops);
+// }
 
 void remove_outliers(MultiList *mList)
 {
@@ -903,15 +712,15 @@ void find_min_max(MultiList *mList, int *max, int *min)
     printf("Amount of operations = %d\n", count);
 }
 
-void de_noise_image(BitMap *img, int mask_size, int patchSize)
+void de_noise_image(BitMap *img, int mask_size, int padding)
 {
     // assuming grayscale has already been applied + edge detection
     size_t height = img->header.biHeight;
     size_t width = img->header.biWidth;
     int flag;
-    for (int i = patchSize + PADDING; i < (height - (patchSize + PADDING)); i++)
+    for (int i = padding; i < height - padding; i++)
     {
-        for (int j = patchSize + PADDING; j < (width - (patchSize + PADDING)); j++)
+        for (int j = padding; j < width - padding; j++)
         {
             flag = 0;
             // upper region

@@ -1,0 +1,2 @@
+de_noise 1
+interpolation 1

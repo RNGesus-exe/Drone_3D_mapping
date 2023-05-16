@@ -6,7 +6,6 @@
 #include "bitmap.h"
 #include "list.h"
 
-#define PADDING 0
 #define INT_MAX 2147483647
 #define INT_MIN -2147483648
 #define MAX_GRAY_VAL 255
@@ -26,13 +25,13 @@ void init(MultiList *, const char *, BitMap *, const char *, BitMap *);
 
 void clean_up(MultiList *, BitMap *, BitMap *);
 
-enum error_msg applyEdgeDetection(MultiList *, BitMap *, int);
+enum error_msg applyEdgeDetection(BitMap *, int);
 
-enum error_msg TemplateMatching(MultiList *, BitMap *, BitMap *, int);
+enum error_msg TemplateMatching(BitMap *, BitMap *, int, int, double ***);
 
 void markPointsFromLists(BitMap *, MultiList *);
 
-void calculateDistances(MultiList *);
+void calculateDistances(int ***);
 
 void interpolateImage(BitMap *, MultiList *, int, int);
 
